@@ -2,10 +2,15 @@
 const BASE_URL = "https://api.themoviedb.org/3";
 export const IMAGE_BASE_URL = "https://image.tmdb.org/t/p";
 
+export type MediaType = "movie" | "tv";
+
 export type TmdbMedia = {
   id: number;
+  media_type?: string;
   title?: string; // фильмы
   name?: string; // сериалы
+  original_title?: string;
+  original_name?: string;
   overview: string;
   poster_path: string | null;
   backdrop_path: string | null;
@@ -14,7 +19,13 @@ export type TmdbMedia = {
   vote_average: number;
 };
 
+export type TmdbSearchItem = TmdbMedia & { media_type: MediaType };
+
 type TmdbList = { page: number; results: TmdbMedia[]; total_pages: number };
+
+export function isMediaType(value: unknown): value is MediaType {
+  return value === "movie" || value === "tv";
+}
 
 async function tmdbFetch<T>(
   path: string,
@@ -31,7 +42,7 @@ async function tmdbFetch<T>(
   }
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}`, accept: "application/json" },
-    next: { revalidate: 3600 },
+    cache: "no-store",
   });
   if (!res.ok) {
     throw new Error(`TMDB ${res.status}: ${res.statusText} (${path})`);
@@ -39,18 +50,40 @@ async function tmdbFetch<T>(
   return res.json() as Promise<T>;
 }
 
-export const getTrendingMovies = () =>
-  tmdbFetch<TmdbList>("/trending/movie/week");
+export const getTrending = (type: MediaType) =>
+  tmdbFetch<TmdbList>(`/trending/${type}/week`);
 
-export const getTrendingTv = () => tmdbFetch<TmdbList>("/trending/tv/week");
+export const getPopular = (type: MediaType) =>
+  tmdbFetch<TmdbList>(`/${type}/popular`);
 
-export const searchMulti = (query: string, page = 1) =>
-  tmdbFetch<TmdbList>("/search/multi", { query, page: String(page) });
+export const getDetails = (type: MediaType, id: number) =>
+  tmdbFetch<TmdbMedia>(`/${type}/${id}`);
 
-export const getMovie = (id: number) =>
-  tmdbFetch<TmdbMedia>(`/movie/${id}`);
-
-export const getTv = (id: number) => tmdbFetch<TmdbMedia>(`/tv/${id}`);
+/** Поиск по фильмам и сериалам (люди из выдачи убираются). */
+export async function searchMovieTv(query: string): Promise<TmdbSearchItem[]> {
+  const data = await tmdbFetch<TmdbList>("/search/multi", {
+    query,
+    include_adult: "false",
+  });
+  return data.results.filter((r): r is TmdbSearchItem =>
+    isMediaType(r.media_type),
+  );
+}
 
 export const posterUrl = (path: string | null, size = "w500") =>
   path ? `${IMAGE_BASE_URL}/${size}${path}` : null;
+
+/** Строка для таблицы titles в Supabase. */
+export function toTitleRow(type: MediaType, m: TmdbMedia) {
+  return {
+    tmdb_id: m.id,
+    media_type: type,
+    title: m.title ?? m.name ?? "Без названия",
+    original_title: m.original_title ?? m.original_name ?? null,
+    overview: m.overview || null,
+    poster_path: m.poster_path,
+    backdrop_path: m.backdrop_path,
+    release_date: m.release_date || m.first_air_date || null,
+    tmdb_rating: m.vote_average ? Math.round(m.vote_average * 10) / 10 : null,
+  };
+}
