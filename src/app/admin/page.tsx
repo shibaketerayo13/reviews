@@ -85,14 +85,17 @@ export default async function AdminPage({
       <section className="panel">
         <h2>IMDb Top 250</h2>
         <p className="muted small-text">
-          Лучшие фильмы по версии IMDb (снимок списка от 07.10.2026). Каждый
-          фильм ищется в TMDB по IMDb ID. Повторы не добавляются, кнопку можно
-          нажимать сколько угодно раз. Импорт 250 фильмов занимает около
-          минуты.
+          Лучшие фильмы и сериалы по версии IMDb (снимок списков от
+          07.10.2026). Каждая позиция ищется в TMDB по IMDb ID. Повторы не
+          добавляются, кнопку можно нажимать сколько угодно раз. Импорт 250
+          позиций занимает около минуты.
         </p>
         <form action={importImdb} className="inline-form">
-          <input type="hidden" name="preset" value="top" />
-          <select name="limit" defaultValue="200" aria-label="Сколько">
+          <select name="preset" defaultValue="top" aria-label="Список">
+            <option value="top">Фильмы</option>
+            <option value="top_tv">Сериалы</option>
+          </select>
+          <select name="limit" defaultValue="250" aria-label="Сколько">
             <option value="50">Топ 50</option>
             <option value="100">Топ 100</option>
             <option value="200">Топ 200</option>
