@@ -3,6 +3,7 @@ import Image from "next/image";
 import { requireUser, getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { posterUrl } from "@/lib/tmdb";
+import { AvatarUploader } from "@/components/AvatarUploader";
 import {
   MEDIA_LABEL,
   STATUS_LABEL,
@@ -35,6 +36,7 @@ export default async function ProfilePage({
   const profile = await getProfile();
   const { tab: rawTab, error, message } = await searchParams;
   const tab: Tab = isWatchStatus(rawTab) ? rawTab : "all";
+  const name = profile?.display_name ?? user.email ?? "";
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -56,7 +58,7 @@ export default async function ProfilePage({
   const avg =
     scored.length > 0
       ? (scored.reduce((sum, e) => sum + (e.score ?? 0), 0) / scored.length).toFixed(1)
-      : null;
+      : "—";
   const shown = tab === "all" ? all : all.filter((e) => e.status === tab);
 
   const tabs: { key: Tab; label: string }[] = [
@@ -69,37 +71,54 @@ export default async function ProfilePage({
       {error && <p className="notice error">{error}</p>}
       {message && <p className="notice">{message}</p>}
 
-      <section className="panel profile-head">
-        <div>
-          <h1>{profile?.display_name ?? user.email}</h1>
-          <p className="muted">
-            {user.email}
+      <section className="profile-hero reveal">
+        <AvatarUploader userId={user.id} name={name} url={profile?.avatar_url ?? null} />
+
+        <div className="profile-main">
+          <p className="eyebrow">
+            Профиль
             {profile?.is_admin && (
               <>
                 {" · "}
-                <Link href="/admin">админ</Link>
+                <Link href="/admin">администратор</Link>
               </>
             )}
           </p>
-          <p>
-            Просмотрено: <strong>{counts.watched}</strong>
-            {" · "}оценок: <strong>{scored.length}</strong>
-            {avg && (
-              <>
-                {" · "}средняя: <strong>{avg}</strong>
-              </>
-            )}
-          </p>
+          <h1 className="profile-name">{name}</h1>
+          <details className="rename">
+            <summary>Изменить имя</summary>
+            <form action={updateDisplayName} className="inline-form">
+              <input
+                name="display_name"
+                defaultValue={profile?.display_name ?? ""}
+                maxLength={40}
+                aria-label="Имя на сайте"
+              />
+              <button type="submit" className="button button-small">
+                Сохранить
+              </button>
+            </form>
+          </details>
         </div>
-        <form action={updateDisplayName} className="inline-form">
-          <input
-            name="display_name"
-            defaultValue={profile?.display_name ?? ""}
-            maxLength={40}
-            aria-label="Имя на сайте"
-          />
-          <button type="submit">Сохранить имя</button>
-        </form>
+
+        <dl className="profile-stats">
+          <div>
+            <dt>Просмотрено</dt>
+            <dd>{counts.watched}</dd>
+          </div>
+          <div>
+            <dt>В планах</dt>
+            <dd>{counts.planned}</dd>
+          </div>
+          <div>
+            <dt>Брошено</dt>
+            <dd>{counts.dropped}</dd>
+          </div>
+          <div>
+            <dt>Средняя оценка</dt>
+            <dd className="accent">{avg}</dd>
+          </div>
+        </dl>
       </section>
 
       <nav className="tabs" aria-label="Разделы профиля">
@@ -109,52 +128,61 @@ export default async function ProfilePage({
             href={t.key === "all" ? "/profile" : `/profile?tab=${t.key}`}
             className={`tab${tab === t.key ? " active" : ""}`}
             aria-current={tab === t.key ? "page" : undefined}
+            scroll={false}
           >
-            {t.label} <span className="tab-count">{counts[t.key]}</span>
+            {t.label}
+            <span className="tab-count">{counts[t.key]}</span>
           </Link>
         ))}
       </nav>
 
       {shown.length === 0 ? (
-        <p className="muted">
-          {tab === "all"
-            ? "В профиле пока пусто. "
-            : `В разделе «${STATUS_LABEL[tab as WatchStatus]}» пока ничего нет. `}
-          Найдите фильм через <Link href="/search">поиск</Link>, откройте его и
-          нажмите «Добавить в профиль».
-        </p>
+        <div className="empty reveal">
+          <p className="empty-title">
+            {tab === "all" ? "Здесь пока пусто" : `В разделе «${STATUS_LABEL[tab as WatchStatus]}» ничего нет`}
+          </p>
+          <p className="muted">
+            Найдите фильм через поиск наверху, откройте его и нажмите «Добавить
+            в профиль».
+          </p>
+        </div>
       ) : (
-        <ul className="rating-list">
-          {shown.map((e) => {
+        <ul className="entries" key={tab}>
+          {shown.map((e, i) => {
             const t = e.titles!;
-            const poster = posterUrl(t.poster_path, "w154");
+            const poster = posterUrl(t.poster_path, "w185");
             return (
-              <li key={t.id} className="rating-item">
-                <Link href={`/title/${t.id}`} className="rating-poster">
+              <li
+                key={t.id}
+                className="entry reveal"
+                style={{ "--i": Math.min(i, 14) } as React.CSSProperties}
+              >
+                <Link href={`/title/${t.id}`} className="entry-poster" tabIndex={-1}>
                   {poster ? (
-                    <Image src={poster} alt={t.title} width={70} height={105} />
+                    <Image src={poster} alt="" fill sizes="80px" />
                   ) : (
-                    <div className="no-poster small">—</div>
+                    <div className="no-poster" />
                   )}
                 </Link>
-                <div className="rating-body">
-                  <Link href={`/title/${t.id}`}>
-                    <strong>{t.title}</strong>
-                  </Link>{" "}
-                  <span className="muted small-text">
-                    {MEDIA_LABEL[t.media_type]} {yearOf(t.release_date)}
-                  </span>
+                <div className="entry-body">
+                  <div className="entry-top">
+                    <Link href={`/title/${t.id}`} className="entry-title">
+                      {t.title}
+                    </Link>
+                    {e.score !== null && <span className="entry-score">{e.score}</span>}
+                  </div>
                   <p className="entry-meta">
-                    <span className={`badge badge-${e.status}`}>
-                      {STATUS_LABEL[e.status]}
+                    <span className={`badge badge-${e.status}`}>{STATUS_LABEL[e.status]}</span>
+                    <span className="muted">
+                      {MEDIA_LABEL[t.media_type]}
+                      {t.release_date && ` · ${yearOf(t.release_date)}`}
                     </span>
-                    {e.score !== null && <span className="score">★ {e.score}/10</span>}
                   </p>
-                  {e.review && <p className="review-text">{e.review}</p>}
-                  <Link href={`/title/${t.id}`} className="small-text">
-                    Изменить
-                  </Link>
+                  {e.review && <p className="entry-review">{e.review}</p>}
                 </div>
+                <Link href={`/title/${t.id}`} className="entry-edit" aria-label={`Изменить: ${t.title}`}>
+                  Изменить
+                </Link>
               </li>
             );
           })}

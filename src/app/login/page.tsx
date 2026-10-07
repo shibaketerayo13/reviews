@@ -14,10 +14,20 @@ export default async function LoginPage({
 
   return (
     <div className="auth">
+      <header className="page-head reveal">
+        <p className="eyebrow">Аккаунт</p>
+        <h1>
+          Добро пожаловать <em>в зал</em>
+        </h1>
+        <p className="lead">
+          Войдите или создайте аккаунт, чтобы вести свой дневник просмотров.
+        </p>
+      </header>
+
       {error && <p className="notice error">{error}</p>}
       {message && <p className="notice">{message}</p>}
 
-      <div className="auth-grid">
+      <div className="auth-grid reveal" style={{ "--i": 2 } as React.CSSProperties}>
         <form action={login} className="panel form">
           <h2>Вход</h2>
           <label>
@@ -33,7 +43,7 @@ export default async function LoginPage({
               required
             />
           </label>
-          <button type="submit">Войти</button>
+          <button type="submit" className="button">Войти</button>
         </form>
 
         <form action={signup} className="panel form">
@@ -56,7 +66,7 @@ export default async function LoginPage({
               required
             />
           </label>
-          <button type="submit">Создать аккаунт</button>
+          <button type="submit" className="button">Создать аккаунт</button>
         </form>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/auth";
 import { getTitleStats } from "@/lib/catalog";
 import { posterUrl } from "@/lib/tmdb";
+import { Avatar } from "@/components/Avatar";
 import {
   MEDIA_LABEL,
   STATUS_LABEL,
@@ -21,10 +22,10 @@ type ReviewRow = {
   score: number | null;
   review: string | null;
   updated_at: string;
-  profiles: { display_name: string | null } | null;
+  profiles: { display_name: string | null; avatar_url: string | null } | null;
 };
 
-const SCORES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default async function TitlePage({
   params,
@@ -51,7 +52,9 @@ export default async function TitlePage({
     getTitleStats([id]),
     supabase
       .from("ratings")
-      .select("user_id, status, score, review, updated_at, profiles(display_name)")
+      .select(
+        "user_id, status, score, review, updated_at, profiles(display_name, avatar_url)",
+      )
       .eq("title_id", id)
       .order("updated_at", { ascending: false })
       .limit(100),
@@ -62,89 +65,146 @@ export default async function TitlePage({
   const reviews = entries.filter((r) => r.score !== null || r.review);
   const stat = stats.get(id);
   const poster = posterUrl(title.poster_path, "w500");
+  const backdrop = posterUrl(title.backdrop_path, "w1280");
 
   return (
-    <>
+    <div className="title-page">
+      {backdrop && (
+        <div className="title-backdrop" aria-hidden="true">
+          <Image src={backdrop} alt="" fill priority sizes="100vw" />
+        </div>
+      )}
+
       {error && <p className="notice error">{error}</p>}
       {message && <p className="notice">{message}</p>}
 
       <section className="title-hero">
-        {poster ? (
-          <Image
-            src={poster}
-            alt={title.title}
-            width={300}
-            height={450}
-            className="title-poster"
-            priority
-          />
-        ) : (
-          <div className="no-poster title-poster">нет постера</div>
-        )}
-        <div>
-          <h1>{title.title}</h1>
-          <p className="muted">
-            {MEDIA_LABEL[title.media_type]} {yearOf(title.release_date)}
-            {title.original_title && title.original_title !== title.title && (
-              <> · {title.original_title}</>
-            )}
-          </p>
-          <p className="big-score">
-            {stat ? (
-              <>
-                ★ {stat.avg.toFixed(1)}
-                <span className="muted small-text">
-                  {" "}
-                  оценок на сайте: {stat.count}
-                </span>
-              </>
-            ) : (
-              <span className="muted small-text">На сайте ещё нет оценок</span>
-            )}
-          </p>
-          {title.tmdb_rating != null && (
-            <p className="muted small-text">TMDB: {title.tmdb_rating}</p>
+        <div className="title-poster reveal">
+          {poster ? (
+            <Image
+              src={poster}
+              alt={title.title}
+              fill
+              sizes="(max-width: 640px) 60vw, 280px"
+              priority
+            />
+          ) : (
+            <div className="no-poster">{title.title}</div>
           )}
-          {title.overview && <p>{title.overview}</p>}
+        </div>
+
+        <div className="title-info">
+          <p className="eyebrow reveal" style={{ "--i": 1 } as React.CSSProperties}>
+            {MEDIA_LABEL[title.media_type]}
+            {title.release_date && ` · ${yearOf(title.release_date)}`}
+          </p>
+          <h1 className="title-name reveal" style={{ "--i": 2 } as React.CSSProperties}>
+            {title.title}
+          </h1>
+          {title.original_title && title.original_title !== title.title && (
+            <p className="title-original reveal" style={{ "--i": 3 } as React.CSSProperties}>
+              {title.original_title}
+            </p>
+          )}
+
+          <dl className="scores reveal" style={{ "--i": 4 } as React.CSSProperties}>
+            <div>
+              <dt>Оценка сайта</dt>
+              <dd>
+                {stat ? (
+                  <>
+                    <span className="score-big">{stat.avg.toFixed(1)}</span>
+                    <span className="score-sub">{stat.count} оц.</span>
+                  </>
+                ) : (
+                  <span className="score-none">—</span>
+                )}
+              </dd>
+            </div>
+            {title.tmdb_rating != null && (
+              <div>
+                <dt>TMDB</dt>
+                <dd>
+                  <span className="score-big">{Number(title.tmdb_rating).toFixed(1)}</span>
+                </dd>
+              </div>
+            )}
+            {mine?.score != null && (
+              <div>
+                <dt>Ваша</dt>
+                <dd>
+                  <span className="score-big accent">{mine.score}</span>
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          {title.overview && (
+            <p className="title-overview reveal" style={{ "--i": 5 } as React.CSSProperties}>
+              {title.overview}
+            </p>
+          )}
         </div>
       </section>
 
-      <section className="panel">
-        <h2>
-          {mine ? `В вашем профиле: ${STATUS_LABEL[mine.status].toLowerCase()}` : "Добавить в профиль"}
-        </h2>
+      <section className="panel entry-panel reveal" style={{ "--i": 6 } as React.CSSProperties}>
+        <div className="entry-head">
+          <h2>{mine ? "В вашем профиле" : "Добавить в профиль"}</h2>
+          {mine && (
+            <span className={`badge badge-${mine.status}`}>{STATUS_LABEL[mine.status]}</span>
+          )}
+        </div>
         {user ? (
           <>
-            <form action={saveRating} className="form">
+            <form action={saveRating} className="entry-form">
               <input type="hidden" name="title_id" value={id} />
-              <fieldset className="status-picker">
+
+              <fieldset className="choice-group">
                 <legend>Статус</legend>
-                {WATCH_STATUSES.map((s) => (
-                  <label key={s} className="status-option">
+                <div className="segmented">
+                  {WATCH_STATUSES.map((s) => (
+                    <label key={s}>
+                      <input
+                        type="radio"
+                        name="status"
+                        value={s}
+                        defaultChecked={(mine?.status ?? "watched") === s}
+                        required
+                      />
+                      <span>{STATUS_LABEL[s]}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset className="choice-group">
+                <legend>Личная оценка</legend>
+                <div className="score-picker">
+                  <label className="score-pill none">
                     <input
                       type="radio"
-                      name="status"
-                      value={s}
-                      defaultChecked={(mine?.status ?? "watched") === s}
-                      required
+                      name="score"
+                      value=""
+                      defaultChecked={mine?.score == null}
                     />
-                    <span>{STATUS_LABEL[s]}</span>
+                    <span>—</span>
                   </label>
-                ))}
-              </fieldset>
-              <label>
-                Личная оценка (необязательно)
-                <select name="score" defaultValue={mine?.score ?? ""}>
-                  <option value="">без оценки</option>
                   {SCORES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
+                    <label key={s} className="score-pill">
+                      <input
+                        type="radio"
+                        name="score"
+                        value={s}
+                        defaultChecked={mine?.score === s}
+                      />
+                      <span>{s}</span>
+                    </label>
                   ))}
-                </select>
-              </label>
-              <label>
-                Комментарий (необязательно)
+                </div>
+              </fieldset>
+
+              <label className="field">
+                <span>Комментарий</span>
                 <textarea
                   name="review"
                   rows={4}
@@ -153,10 +213,15 @@ export default async function TitlePage({
                   placeholder="Впечатления, заметки для себя…"
                 />
               </label>
-              <button type="submit">{mine ? "Сохранить изменения" : "Добавить в профиль"}</button>
+
+              <div className="entry-actions">
+                <button type="submit" className="button">
+                  {mine ? "Сохранить" : "Добавить в профиль"}
+                </button>
+              </div>
             </form>
             {mine && (
-              <form action={deleteRating}>
+              <form action={deleteRating} className="entry-remove">
                 <input type="hidden" name="title_id" value={id} />
                 <button type="submit" className="link-button danger">
                   Убрать из профиля
@@ -165,7 +230,7 @@ export default async function TitlePage({
             )}
           </>
         ) : (
-          <p>
+          <p className="muted">
             <Link href="/login">Войдите</Link>, чтобы добавить фильм в профиль,
             поставить оценку и оставить комментарий.
           </p>
@@ -173,27 +238,46 @@ export default async function TitlePage({
       </section>
 
       <section>
-        <h2>Отзывы</h2>
+        <div className="section-head">
+          <h2>Отзывы</h2>
+          <span className="section-count">{reviews.length}</span>
+        </div>
         {reviews.length === 0 ? (
-          <p className="muted">Пока никто не оценил.</p>
+          <p className="muted">Пока никто не оценил. Будьте первым.</p>
         ) : (
           <ul className="review-list">
-            {reviews.map((r) => (
-              <li key={r.user_id} className="panel">
-                <p>
-                  <strong>{r.profiles?.display_name ?? "Пользователь"}</strong>{" "}
-                  {r.score !== null && <span className="score">★ {r.score}/10</span>}{" "}
-                  <span className={`badge badge-${r.status}`}>{STATUS_LABEL[r.status]}</span>{" "}
-                  <span className="muted small-text">
-                    {new Date(r.updated_at).toLocaleDateString("ru-RU")}
-                  </span>
-                </p>
-                {r.review && <p className="review-text">{r.review}</p>}
-              </li>
-            ))}
+            {reviews.map((r, i) => {
+              const name = r.profiles?.display_name ?? "Пользователь";
+              return (
+                <li
+                  key={r.user_id}
+                  className="review reveal"
+                  style={{ "--i": Math.min(i, 10) } as React.CSSProperties}
+                >
+                  <Avatar url={r.profiles?.avatar_url} name={name} size={40} />
+                  <div className="review-body">
+                    <p className="review-head">
+                      <strong>{name}</strong>
+                      {r.score !== null && <span className="review-score">★ {r.score}</span>}
+                      <span className={`badge badge-${r.status}`}>
+                        {STATUS_LABEL[r.status]}
+                      </span>
+                      <time className="review-date" dateTime={r.updated_at}>
+                        {new Date(r.updated_at).toLocaleDateString("ru-RU", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </time>
+                    </p>
+                    {r.review && <p className="review-text">{r.review}</p>}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
-    </>
+    </div>
   );
 }

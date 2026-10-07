@@ -5,14 +5,9 @@ import { searchMovieTv, type TmdbSearchItem } from "@/lib/tmdb";
 import { TitleGrid } from "@/components/TitleCard";
 import { TmdbResults } from "@/components/TmdbResults";
 import type { Title } from "@/lib/types";
+import { toIlikePattern } from "@/lib/search";
 
 export const metadata = { title: "Поиск · reviews" };
-
-/** Убираем символы, которые ломают фильтр PostgREST, и экранируем шаблоны LIKE. */
-function toIlikePattern(q: string): string {
-  const cleaned = q.replace(/[,()*"\\]/g, " ").replace(/[%_]/g, (m) => `\\${m}`);
-  return `%${cleaned.trim()}%`;
-}
 
 export default async function SearchPage({
   searchParams,
@@ -26,12 +21,13 @@ export default async function SearchPage({
 
   if (!q) {
     return (
-      <section>
-        <h1>Поиск</h1>
-        <form action="/search" className="inline-form">
-          <input name="q" type="search" placeholder="Название фильма или сериала" autoFocus />
-          <button type="submit">Искать</button>
-        </form>
+      <section className="page-head reveal">
+        <p className="eyebrow">Поиск</p>
+        <h1>Что ищем?</h1>
+        <p className="lead">
+          Начните вводить название в строке поиска наверху: подсказки появятся
+          сразу.
+        </p>
       </section>
     );
   }
@@ -65,10 +61,16 @@ export default async function SearchPage({
       {error && <p className="notice error">{error}</p>}
       {message && <p className="notice">{message}</p>}
 
-      <h1>Поиск: «{q}»</h1>
+      <header className="page-head reveal">
+        <p className="eyebrow">Поиск</p>
+        <h1>«{q}»</h1>
+      </header>
 
       <section>
-        <h2>В каталоге</h2>
+        <div className="section-head">
+          <h2>В каталоге</h2>
+          <span className="section-count">{titles.length}</span>
+        </div>
         {titles.length > 0 ? (
           <TitleGrid titles={titles} stats={stats} />
         ) : (
@@ -77,7 +79,9 @@ export default async function SearchPage({
       </section>
 
       <section>
-        <h2>Ещё в TMDB</h2>
+        <div className="section-head">
+          <h2>Ещё в TMDB</h2>
+        </div>
         {tmdbError ? (
           <p className="notice error">Поиск в TMDB недоступен: {tmdbError}</p>
         ) : tmdbMissing.length > 0 ? (
