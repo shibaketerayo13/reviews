@@ -1,11 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
+import { posterUrl } from "@/lib/tmdb";
 import { requireUser, getProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { posterUrl } from "@/lib/tmdb";
 import { AvatarUploader } from "@/components/AvatarUploader";
+import { ProfileEntries } from "@/components/ProfileEntries";
 import {
-  MEDIA_LABEL,
   STATUS_LABEL,
   WATCH_STATUSES,
   isWatchStatus,
@@ -21,9 +21,22 @@ type Entry = {
   status: WatchStatus;
   score: number | null;
   review: string | null;
+  is_favorite: boolean;
+  favorited_at: string | null;
   updated_at: string;
-  titles: Pick<Title, "id" | "title" | "media_type" | "poster_path" | "release_date"> | null;
+  titles: Pick<
+    Title,
+    "id" | "title" | "original_title" | "media_type" | "poster_path" | "release_date"
+  > | null;
 };
+
+function formatSince(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? null
+    : d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
 
 type Tab = "all" | WatchStatus;
 
@@ -42,7 +55,7 @@ export default async function ProfilePage({
   const { data } = await supabase
     .from("ratings")
     .select(
-      "status, score, review, updated_at, titles(id, title, media_type, poster_path, release_date)",
+      "status, score, review, is_favorite, favorited_at, updated_at, titles(id, title, original_title, media_type, poster_path, release_date)",
     )
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
@@ -60,6 +73,10 @@ export default async function ProfilePage({
       ? (scored.reduce((sum, e) => sum + (e.score ?? 0), 0) / scored.length).toFixed(1)
       : "—";
   const shown = tab === "all" ? all : all.filter((e) => e.status === tab);
+  const favorites = all
+    .filter((e) => e.is_favorite)
+    .sort((a, b) => (b.favorited_at ?? "").localeCompare(a.favorited_at ?? ""));
+  const since = formatSince(user.created_at);
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "all", label: "Все" },
@@ -85,8 +102,11 @@ export default async function ProfilePage({
             )}
           </p>
           <h1 className="profile-name">{name}</h1>
+          {since && <p className="profile-since">На сайте с {since}</p>}
           <details className="rename">
-            <summary>Изменить имя</summary>
+            <summary>
+              Изменить имя
+            </summary>
             <form action={updateDisplayName} className="inline-form">
               <input
                 name="display_name"
@@ -99,6 +119,9 @@ export default async function ProfilePage({
               </button>
             </form>
           </details>
+          <Link href="/profile/import" className="profile-import-link">
+            Импорт оценок списком →
+          </Link>
         </div>
 
         <dl className="profile-stats">
@@ -121,73 +144,90 @@ export default async function ProfilePage({
         </dl>
       </section>
 
-      <nav className="tabs" aria-label="Разделы профиля">
-        {tabs.map((t) => (
-          <Link
-            key={t.key}
-            href={t.key === "all" ? "/profile" : `/profile?tab=${t.key}`}
-            className={`tab${tab === t.key ? " active" : ""}`}
-            aria-current={tab === t.key ? "page" : undefined}
-            scroll={false}
-          >
-            {t.label}
-            <span className="tab-count">{counts[t.key]}</span>
-          </Link>
-        ))}
-      </nav>
-
-      {shown.length === 0 ? (
-        <div className="empty reveal">
-          <p className="empty-title">
-            {tab === "all" ? "Здесь пока пусто" : `В разделе «${STATUS_LABEL[tab as WatchStatus]}» ничего нет`}
-          </p>
-          <p className="muted">
-            Найдите фильм через поиск наверху, откройте его и нажмите «Добавить
-            в профиль».
-          </p>
+      <section className="favorites">
+        <div className="section-head">
+          <h2>
+            Любимые <span className="fav-heart" aria-hidden="true">♥</span>
+          </h2>
+          {favorites.length > 0 && <span className="section-count">{favorites.length}</span>}
         </div>
-      ) : (
-        <ul className="entries" key={tab}>
-          {shown.map((e, i) => {
-            const t = e.titles!;
-            const poster = posterUrl(t.poster_path, "w185");
-            return (
-              <li
-                key={t.id}
-                className="entry reveal"
-                style={{ "--i": Math.min(i, 14) } as React.CSSProperties}
-              >
-                <Link href={`/title/${t.id}`} className="entry-poster" tabIndex={-1}>
-                  {poster ? (
-                    <Image src={poster} alt="" fill sizes="80px" />
-                  ) : (
-                    <div className="no-poster" />
-                  )}
-                </Link>
-                <div className="entry-body">
-                  <div className="entry-top">
-                    <Link href={`/title/${t.id}`} className="entry-title">
-                      {t.title}
-                    </Link>
-                    {e.score !== null && <span className="entry-score">{e.score}</span>}
-                  </div>
-                  <p className="entry-meta">
-                    <span className={`badge badge-${e.status}`}>{STATUS_LABEL[e.status]}</span>
-                    <span className="muted">
-                      {MEDIA_LABEL[t.media_type]}
-                      {t.release_date && ` · ${yearOf(t.release_date)}`}
+        {favorites.length === 0 ? (
+          <p className="muted small-text">
+            Отметьте фильм сердечком на его странице или в окне редактирования, и
+            он появится здесь.
+          </p>
+        ) : (
+          <ul className="fav-grid">
+            {favorites.map((e, i) => {
+              const t = e.titles!;
+              const poster = posterUrl(t.poster_path, "w342");
+              return (
+                <li
+                  key={t.id}
+                  className="reveal"
+                  style={{ "--i": Math.min(i, 16) } as React.CSSProperties}
+                >
+                  <Link href={`/title/${t.id}`} className="fav-tile" title={t.title}>
+                    {poster ? (
+                      <Image src={poster} alt={t.title} fill sizes="(max-width: 640px) 30vw, 140px" />
+                    ) : (
+                      <span className="no-poster">{t.title}</span>
+                    )}
+                    <span className="fav-caption">
+                      <span className="fav-title">{t.title}</span>
+                      {e.score !== null && <span className="fav-score">{e.score}</span>}
                     </span>
-                  </p>
-                  {e.review && <p className="entry-review">{e.review}</p>}
-                </div>
-                <Link href={`/title/${t.id}`} className="entry-edit" aria-label={`Изменить: ${t.title}`}>
-                  Изменить
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <ProfileEntries
+        tabs={
+          <nav className="tabs-list" aria-label="Разделы профиля">
+            {tabs.map((t) => (
+              <Link
+                key={t.key}
+                href={t.key === "all" ? "/profile" : `/profile?tab=${t.key}`}
+                className={`tab${tab === t.key ? " active" : ""}`}
+                aria-current={tab === t.key ? "page" : undefined}
+                scroll={false}
+              >
+                {t.label}
+                <span className="tab-count">{counts[t.key]}</span>
+              </Link>
+            ))}
+          </nav>
+        }
+        empty={
+          <div className="empty reveal">
+            <p className="empty-title">
+              {tab === "all"
+                ? "Здесь пока пусто"
+                : `В разделе «${STATUS_LABEL[tab as WatchStatus]}» ничего нет`}
+            </p>
+            <p className="muted">
+              Найдите фильм через поиск наверху, откройте его и нажмите «Добавить
+              в профиль».
+            </p>
+          </div>
+        }
+        entries={shown.map((e) => ({
+          titleId: e.titles!.id,
+          title: e.titles!.title,
+          originalTitle: e.titles!.original_title,
+          mediaType: e.titles!.media_type,
+          year: yearOf(e.titles!.release_date),
+          posterPath: e.titles!.poster_path,
+          status: e.status,
+          score: e.score,
+          review: e.review,
+          isFavorite: Boolean(e.is_favorite),
+        }))}
+      />
     </>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { IMDB_TOP_250 } from "@/data/imdb-top-250";
 import { IMDB_TOP_250_TV } from "@/data/imdb-top-250-tv";
 import { safeNext, withParam } from "@/lib/redirect";
+import { mapLimited } from "@/lib/async";
 
 async function assertAdmin() {
   const profile = await getProfile();
@@ -69,24 +70,6 @@ async function insertNew(rows: TitleRow[]): Promise<number> {
     .select("id");
   if (error) done("/admin", "error", `Ошибка базы: ${error.message}`);
   return data?.length ?? 0;
-}
-
-/** Выполняет задачи по несколько штук одновременно, чтобы не упереться в лимиты TMDB. */
-async function mapLimited<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length);
-  let next = 0;
-  async function worker() {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await fn(items[i]);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return out;
 }
 
 /** Импорт списка TMDB: популярное, трендовое или лучшее по рейтингу, N страниц по 20. */
@@ -191,4 +174,33 @@ export async function deleteTitle(formData: FormData) {
 
   revalidatePath("/");
   done("/admin", "message", "Удалено из каталога");
+}
+
+/** Заменить фильм в каталоге на другой из TMDB (исправление неверного совпадения). */
+export async function replaceTitle(formData: FormData) {
+  await assertAdmin();
+  const titleId = Number(formData.get("title_id"));
+  const tmdbId = Number(formData.get("tmdb_id"));
+  const mediaType = formData.get("media_type");
+  const back = `/title/${titleId}`;
+  if (!Number.isInteger(titleId) || titleId <= 0) redirect("/admin");
+  if (!Number.isInteger(tmdbId) || tmdbId <= 0 || !isMediaType(mediaType)) {
+    done(back, "error", "Неверные данные");
+  }
+
+  const row = await getDetails(mediaType, tmdbId)
+    .then((m) => toTitleRow(mediaType, m))
+    .catch(() => null);
+  if (!row) done(back, "error", "Не удалось получить данные из TMDB");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_replace_title", {
+    p_title_id: titleId,
+    p_row: row,
+  });
+  if (error) done(back, "error", `Не удалось заменить: ${error.message}`);
+
+  const newId = Number(data);
+  revalidatePath("/", "layout");
+  done(`/title/${newId}`, "message", `Заменено на «${row.title}». Оценки сохранены.`);
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getUser } from "@/lib/auth";
+import { getProfile, getUser } from "@/lib/auth";
+import { AdminFix } from "@/components/AdminFix";
 import { getTitleStats } from "@/lib/catalog";
 import { getFullDetails } from "@/lib/tmdb";
 import { Avatar } from "@/components/Avatar";
@@ -21,6 +22,7 @@ type ReviewRow = {
   status: WatchStatus;
   score: number | null;
   review: string | null;
+  is_favorite: boolean;
   updated_at: string;
   profiles: { display_name: string | null; avatar_url: string | null } | null;
 };
@@ -30,10 +32,10 @@ export default async function TitlePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; fix?: string }>;
 }) {
   const { id: rawId } = await params;
-  const { error, message } = await searchParams;
+  const { error, message, fix } = await searchParams;
   const id = Number(rawId);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
@@ -45,13 +47,14 @@ export default async function TitlePage({
     .maybeSingle<Title>();
   if (!title) notFound();
 
-  const [user, stats, { data: reviewsData }, details] = await Promise.all([
+  const [user, profile, stats, { data: reviewsData }, details] = await Promise.all([
     getUser(),
+    getProfile(),
     getTitleStats([id]),
     supabase
       .from("ratings")
       .select(
-        "user_id, status, score, review, updated_at, profiles(display_name, avatar_url)",
+        "user_id, status, score, review, is_favorite, updated_at, profiles(display_name, avatar_url)",
       )
       .eq("title_id", id)
       .order("updated_at", { ascending: false })
@@ -176,12 +179,30 @@ export default async function TitlePage({
           <EntryForm
             titleId={id}
             loggedIn={Boolean(user)}
-            mine={mine ? { status: mine.status, score: mine.score, review: mine.review } : undefined}
+            mine={
+              mine
+                ? {
+                    status: mine.status,
+                    score: mine.score,
+                    review: mine.review,
+                    isFavorite: Boolean(mine.is_favorite),
+                  }
+                : undefined
+            }
           />
         </aside>
       </div>
 
       {details && <Related items={details.related} />}
+
+      {profile?.is_admin && (
+        <AdminFix
+          titleId={id}
+          currentTmdbId={title.tmdb_id}
+          defaultQuery={title.original_title ?? title.title}
+          query={fix?.trim().slice(0, 100) || undefined}
+        />
+      )}
     </div>
   );
 }

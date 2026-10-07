@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { STATUS_LABEL, WATCH_STATUSES, type WatchStatus } from "@/lib/types";
 import { deleteRating, saveRating } from "@/app/title/[id]/actions";
+import { FavoriteButton } from "./FavoriteButton";
 
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const SHORT_STATUS: Record<WatchStatus, string> = {
@@ -9,7 +10,12 @@ const SHORT_STATUS: Record<WatchStatus, string> = {
   dropped: "Бросил",
 };
 
-type Mine = { status: WatchStatus; score: number | null; review: string | null };
+type Mine = {
+  status: WatchStatus;
+  score: number | null;
+  review: string | null;
+  isFavorite: boolean;
+};
 
 /** Компактная форма «в профиль»: статус, оценка, комментарий. */
 export function EntryForm({
@@ -25,7 +31,10 @@ export function EntryForm({
     <section className="entry-card">
       <header className="entry-card-head">
         <h2>Мой дневник</h2>
-        {mine && <span className={`badge badge-${mine.status}`}>{STATUS_LABEL[mine.status]}</span>}
+        <div className="entry-card-tools">
+          {mine && <span className={`badge badge-${mine.status}`}>{STATUS_LABEL[mine.status]}</span>}
+          {loggedIn && <FavoriteButton titleId={titleId} initial={Boolean(mine?.isFavorite)} />}
+        </div>
       </header>
 
       {!loggedIn ? (
