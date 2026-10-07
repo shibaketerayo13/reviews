@@ -37,10 +37,13 @@ export function ProfileEntries({
   entries,
   tabs,
   empty,
+  readOnly = false,
 }: {
   entries: ProfileEntry[];
   tabs: React.ReactNode;
   empty: React.ReactNode;
+  /** Чужой профиль: клик ведёт на страницу фильма, без окна редактирования. */
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState<ProfileEntry | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -134,12 +137,20 @@ export function ProfileEntries({
             className="entry reveal"
             style={{ "--i": Math.min(i, 14) } as React.CSSProperties}
           >
-            <button
-              type="button"
-              className="entry-hit"
-              onClick={() => setOpen(e)}
-              aria-label={`Изменить: ${e.title}`}
-            />
+            {readOnly ? (
+              <Link
+                href={`/title/${e.titleId}`}
+                className="entry-hit"
+                aria-label={`Открыть: ${e.title}`}
+              />
+            ) : (
+              <button
+                type="button"
+                className="entry-hit"
+                onClick={() => setOpen(e)}
+                aria-label={`Изменить: ${e.title}`}
+              />
+            )}
             <div className="entry-poster">
               {e.posterPath ? (
                 <Image src={`${POSTER}/w185${e.posterPath}`} alt="" fill sizes="80px" />
@@ -169,14 +180,14 @@ export function ProfileEntries({
               {e.review && <p className="entry-review">{e.review}</p>}
             </div>
             <span className="entry-edit" aria-hidden="true">
-              Изменить
+              {readOnly ? "Открыть →" : "Изменить"}
             </span>
           </li>
         ))}
       </ul>
       )}
 
-      {open && (
+      {open && !readOnly && (
         <EntryDialog
           key={open.titleId}
           entry={open}

@@ -2,10 +2,17 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Suggestion } from "@/app/api/suggest/route";
+import type { Suggestion, SuggestResponse } from "@/app/api/suggest/route";
+import type { UserHit } from "@/lib/users";
+import { Avatar } from "./Avatar";
 
 const POSTER = "https://image.tmdb.org/t/p/w92";
 const TYPE_LABEL = { movie: "Фильм", tv: "Сериал" } as const;
+
+type Option =
+  | { kind: "title"; href: string; item: Suggestion }
+  | { kind: "user"; href: string; user: UserHit }
+  | { kind: "all"; href: string };
 
 export function SearchBox() {
   const router = useRouter();
@@ -13,6 +20,7 @@ export function SearchBox() {
   const box = useRef<HTMLFormElement>(null);
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Suggestion[]>([]);
+  const [users, setUsers] = useState<UserHit[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [loading, setLoading] = useState(false);
@@ -22,6 +30,7 @@ export function SearchBox() {
     const term = q.trim();
     if (term.length < 2) {
       setItems([]);
+      setUsers([]);
       setLoading(false);
       return;
     }
@@ -32,8 +41,9 @@ export function SearchBox() {
         const res = await fetch(`/api/suggest?q=${encodeURIComponent(term)}`, {
           signal: ctrl.signal,
         });
-        const json = (await res.json()) as { items: Suggestion[] };
+        const json = (await res.json()) as SuggestResponse;
         setItems(json.items ?? []);
+        setUsers(json.users ?? []);
         setActive(-1);
         setOpen(true);
       } catch {
@@ -57,6 +67,14 @@ export function SearchBox() {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  const term = q.trim();
+  // Единый список для клавиатуры: фильмы, люди, «все результаты»
+  const options: Option[] = [
+    ...items.map((item) => ({ kind: "title" as const, href: `/title/${item.id}`, item })),
+    ...users.map((user) => ({ kind: "user" as const, href: `/u/${user.username}`, user })),
+    { kind: "all", href: `/search?q=${encodeURIComponent(term)}` },
+  ];
+
   function go(path: string) {
     setOpen(false);
     setQ("");
@@ -64,7 +82,7 @@ export function SearchBox() {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    const total = items.length + 1; // + строка «Все результаты»
+    const total = options.length;
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setOpen(true);
@@ -75,15 +93,28 @@ export function SearchBox() {
     } else if (e.key === "Escape") {
       setOpen(false);
       setActive(-1);
-    } else if (e.key === "Enter" && open && active >= 0 && active < items.length) {
+    } else if (e.key === "Enter" && open && active >= 0 && active < total) {
       e.preventDefault();
-      go(`/title/${items[active].id}`);
+      go(options[active].href);
     }
   }
 
-  const term = q.trim();
   const showPanel = open && term.length >= 2;
-  const allIndex = items.length;
+  const nothing = items.length === 0 && users.length === 0 && !loading;
+
+  function optionProps(index: number, href: string) {
+    return {
+      id: `${listId}-${index}`,
+      href,
+      role: "option" as const,
+      "aria-selected": active === index,
+      onMouseEnter: () => setActive(index),
+      onClick: (e: React.MouseEvent) => {
+        e.preventDefault();
+        go(href);
+      },
+    };
+  }
 
   return (
     <form
@@ -105,9 +136,9 @@ export function SearchBox() {
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        onFocus={() => items.length && setOpen(true)}
+        onFocus={() => (items.length || users.length) && setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Найти фильм или сериал"
+        placeholder="Фильм, сериал или @человек"
         autoComplete="off"
         role="combobox"
         aria-expanded={showPanel}
@@ -120,57 +151,71 @@ export function SearchBox() {
 
       {showPanel && (
         <div className="suggest" id={listId} role="listbox">
-          {items.length === 0 && !loading && (
-            <p className="suggest-empty">В каталоге ничего не нашлось</p>
-          )}
-          {items.map((it, i) => (
-            <a
-              key={it.id}
-              id={`${listId}-${i}`}
-              href={`/title/${it.id}`}
-              role="option"
-              aria-selected={active === i}
-              className={`suggest-item${active === i ? " is-active" : ""}`}
-              style={{ "--i": i } as React.CSSProperties}
-              onMouseEnter={() => setActive(i)}
-              onClick={(e) => {
-                e.preventDefault();
-                go(`/title/${it.id}`);
-              }}
-            >
-              {it.poster_path ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`${POSTER}${it.poster_path}`} alt="" width={36} height={54} />
-              ) : (
-                <span className="suggest-noposter" />
-              )}
-              <span className="suggest-text">
-                <span className="suggest-title">{it.title}</span>
-                <span className="suggest-meta">
-                  {TYPE_LABEL[it.media_type]}
-                  {it.year && ` · ${it.year}`}
-                  {it.original_title && it.original_title !== it.title && ` · ${it.original_title}`}
-                </span>
-              </span>
-              {it.tmdb_rating ? (
-                <span className="suggest-rating">{it.tmdb_rating.toFixed(1)}</span>
-              ) : null}
-            </a>
-          ))}
-          <a
-            id={`${listId}-${allIndex}`}
-            href={`/search?q=${encodeURIComponent(term)}`}
-            role="option"
-            aria-selected={active === allIndex}
-            className={`suggest-all${active === allIndex ? " is-active" : ""}`}
-            onMouseEnter={() => setActive(allIndex)}
-            onClick={(e) => {
-              e.preventDefault();
-              go(`/search?q=${encodeURIComponent(term)}`);
-            }}
-          >
-            Все результаты по «{term}» →
-          </a>
+          {nothing && <p className="suggest-empty">Ничего не нашлось</p>}
+
+          {options.map((opt, i) => {
+            if (opt.kind === "title") {
+              const it = opt.item;
+              return (
+                <a
+                  key={`t${it.id}`}
+                  {...optionProps(i, opt.href)}
+                  className={`suggest-item${active === i ? " is-active" : ""}`}
+                  style={{ "--i": i } as React.CSSProperties}
+                >
+                  {it.poster_path ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={`${POSTER}${it.poster_path}`} alt="" width={36} height={54} />
+                  ) : (
+                    <span className="suggest-noposter" />
+                  )}
+                  <span className="suggest-text">
+                    <span className="suggest-title">{it.title}</span>
+                    <span className="suggest-meta">
+                      {TYPE_LABEL[it.media_type]}
+                      {it.year && ` · ${it.year}`}
+                      {it.original_title &&
+                        it.original_title !== it.title &&
+                        ` · ${it.original_title}`}
+                    </span>
+                  </span>
+                  {it.tmdb_rating ? (
+                    <span className="suggest-rating">{it.tmdb_rating.toFixed(1)}</span>
+                  ) : null}
+                </a>
+              );
+            }
+            if (opt.kind === "user") {
+              const u = opt.user;
+              const name = u.display_name ?? u.username;
+              const firstUser = i === items.length;
+              return (
+                <div key={`u${u.username}`} className="suggest-group">
+                  {firstUser && <p className="suggest-label">Люди</p>}
+                  <a
+                    {...optionProps(i, opt.href)}
+                    className={`suggest-item suggest-user${active === i ? " is-active" : ""}`}
+                    style={{ "--i": i } as React.CSSProperties}
+                  >
+                    <Avatar url={u.avatar_url} name={name} size={36} />
+                    <span className="suggest-text">
+                      <span className="suggest-title">{name}</span>
+                      <span className="suggest-meta">@{u.username}</span>
+                    </span>
+                  </a>
+                </div>
+              );
+            }
+            return (
+              <a
+                key="all"
+                {...optionProps(i, opt.href)}
+                className={`suggest-all${active === i ? " is-active" : ""}`}
+              >
+                Все результаты по «{term}» →
+              </a>
+            );
+          })}
         </div>
       )}
     </form>

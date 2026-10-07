@@ -2329,6 +2329,108 @@ textarea {
   color: var(--gold);
 }
 
+/* ---------- Публичные профили и люди ---------- */
+.share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.share-link {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+}
+.share-link:hover {
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.rename .inline-form + .inline-form {
+  margin-top: 8px;
+}
+.username-prefix {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.profile-own-note {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.review-author {
+  color: var(--paper);
+}
+.review-author:hover {
+  color: var(--accent-hover);
+}
+.review-avatar {
+  flex: none;
+  border-radius: 50%;
+  transition: box-shadow 0.25s;
+}
+.review-avatar:hover {
+  box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--accent);
+}
+
+.suggest-group {
+  display: contents;
+}
+.suggest-label {
+  margin: 8px 10px 4px;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.suggest-user .avatar {
+  flex: none;
+}
+
+.people-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+}
+.person-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--ink-raised);
+  transition:
+    border-color 0.25s,
+    background 0.25s,
+    transform 0.35s var(--ease);
+}
+.person-chip:hover {
+  color: var(--paper);
+  border-color: var(--line-strong);
+  background: var(--surface);
+  transform: translateY(-2px);
+}
+.person-chip > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.person-chip strong {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ---------- Админ: замена фильма ---------- */
 .admin-fix {
   margin: 8px 0 24px;

@@ -6,6 +6,9 @@ import { TitleGrid } from "@/components/TitleCard";
 import { TmdbResults } from "@/components/TmdbResults";
 import type { Title } from "@/lib/types";
 import { toIlikePattern } from "@/lib/search";
+import { searchUsers } from "@/lib/users";
+import { Avatar } from "@/components/Avatar";
+import Link from "next/link";
 
 export const metadata = { title: "Поиск · reviews" };
 
@@ -41,7 +44,10 @@ export default async function SearchPage({
     .order("tmdb_rating", { ascending: false, nullsFirst: false })
     .limit(48);
   const titles = (local ?? []) as Title[];
-  const stats = await getTitleStats(titles.map((t) => t.id));
+  const [stats, people] = await Promise.all([
+    getTitleStats(titles.map((t) => t.id)),
+    searchUsers(q, 12).catch(() => []),
+  ]);
 
   // Дополнительно ищем в TMDB то, чего нет в каталоге
   let tmdbMissing: TmdbSearchItem[] = [];
@@ -65,6 +71,31 @@ export default async function SearchPage({
         <p className="eyebrow">Поиск</p>
         <h1>«{q}»</h1>
       </header>
+
+      {people.length > 0 && (
+        <section>
+          <div className="section-head">
+            <h2>Люди</h2>
+            <span className="section-count">{people.length}</span>
+          </div>
+          <ul className="people-list">
+            {people.map((u, i) => {
+              const name = u.display_name ?? u.username;
+              return (
+                <li key={u.username} className="reveal" style={{ "--i": i } as React.CSSProperties}>
+                  <Link href={`/u/${u.username}`} className="person-chip">
+                    <Avatar url={u.avatar_url} name={name} size={44} />
+                    <span>
+                      <strong>{name}</strong>
+                      <span className="muted small-text">@{u.username}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section>
         <div className="section-head">

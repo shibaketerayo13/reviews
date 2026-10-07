@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, getUser } from "@/lib/auth";
@@ -24,7 +25,11 @@ type ReviewRow = {
   review: string | null;
   is_favorite: boolean;
   updated_at: string;
-  profiles: { display_name: string | null; avatar_url: string | null } | null;
+  profiles: {
+    display_name: string | null;
+    avatar_url: string | null;
+    username?: string | null;
+  } | null;
 };
 
 export default async function TitlePage({
@@ -54,7 +59,7 @@ export default async function TitlePage({
     supabase
       .from("ratings")
       .select(
-        "user_id, status, score, review, is_favorite, updated_at, profiles(display_name, avatar_url)",
+        "user_id, status, score, review, is_favorite, updated_at, profiles(*)",
       )
       .eq("title_id", id)
       .order("updated_at", { ascending: false })
@@ -143,16 +148,29 @@ export default async function TitlePage({
               <ul className="review-list">
                 {reviews.map((r, i) => {
                   const name = r.profiles?.display_name ?? "Пользователь";
+                  const handle = r.profiles?.username;
                   return (
                     <li
                       key={r.user_id}
                       className="review reveal"
                       style={{ "--i": Math.min(i, 10) } as React.CSSProperties}
                     >
-                      <Avatar url={r.profiles?.avatar_url} name={name} size={40} />
+                      {handle ? (
+                        <Link href={`/u/${handle}`} className="review-avatar" tabIndex={-1}>
+                          <Avatar url={r.profiles?.avatar_url} name={name} size={40} />
+                        </Link>
+                      ) : (
+                        <Avatar url={r.profiles?.avatar_url} name={name} size={40} />
+                      )}
                       <div className="review-body">
                         <p className="review-head">
-                          <strong>{name}</strong>
+                          {handle ? (
+                            <Link href={`/u/${handle}`} className="review-author">
+                              <strong>{name}</strong>
+                            </Link>
+                          ) : (
+                            <strong>{name}</strong>
+                          )}
                           {r.score !== null && <span className="review-score">★ {r.score}</span>}
                           <span className={`badge badge-${r.status}`}>
                             {STATUS_LABEL[r.status]}

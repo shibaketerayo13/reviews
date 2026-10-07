@@ -170,3 +170,34 @@ export async function toggleFavorite(
   revalidatePath(`/title/${id}`);
   return { ok: true };
 }
+
+/* ---------- Короткое имя для ссылки на профиль ---------- */
+
+export async function updateUsername(formData: FormData) {
+  const user = await requireUser();
+  const raw = formData.get("username");
+  const username = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+    redirect(
+      "/profile?error=" +
+        encodeURIComponent("Короткое имя: 3–30 символов, латиница, цифры и «_»"),
+    );
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ username })
+    .eq("id", user.id);
+  if (error) {
+    redirect(
+      "/profile?error=" +
+        encodeURIComponent(
+          error.code === "23505" ? "Это имя уже занято" : "Не удалось сохранить имя",
+        ),
+    );
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/profile?message=" + encodeURIComponent(`Ваш профиль теперь по адресу /u/${username}`));
+}
