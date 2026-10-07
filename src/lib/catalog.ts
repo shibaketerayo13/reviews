@@ -40,3 +40,30 @@ export async function existingKeys(
   }
   return set;
 }
+
+/** Для тайтлов из TMDB: какой у них id в каталоге сайта ("movie:123" → 45). */
+export async function catalogIdMap(
+  items: { id: number; media_type: string }[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (items.length === 0) return map;
+  const supabase = await createClient();
+  const ids = [...new Set(items.map((i) => i.id))].slice(0, 400);
+  const { data } = await supabase
+    .from("titles")
+    .select("id, tmdb_id, media_type")
+    .in("tmdb_id", ids);
+  for (const row of data ?? []) {
+    map.set(`${row.media_type}:${row.tmdb_id}`, row.id);
+  }
+  return map;
+}
+
+/** Ссылка на тайтл: страница в каталоге или превью из TMDB. */
+export function titleHref(
+  item: { id: number; media_type: string },
+  ids: Map<string, number>,
+): string {
+  const local = ids.get(`${item.media_type}:${item.id}`);
+  return local ? `/title/${local}` : `/tmdb/${item.media_type}/${item.id}`;
+}

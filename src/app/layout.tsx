@@ -45,9 +45,14 @@ export default async function RootLayout({
       <body>
         <header className="site-header">
           <div className="header-inner">
-            <Link href="/" className="logo" aria-label="reviews, на главную">
-              reviews<span className="logo-dot">.</span>
-            </Link>
+            <div className="header-left">
+              <Link href="/" className="logo" aria-label="reviews, на главную">
+                reviews<span className="logo-dot">.</span>
+              </Link>
+              <Link href="/catalog" className="nav-link">
+                Каталог
+              </Link>
+            </div>
 
             <SearchBox />
 

@@ -110,7 +110,7 @@ export default async function HomePage() {
                 Создать аккаунт
               </Link>
             )}
-            <Link href="#catalog" className="button button-ghost">
+            <Link href="/catalog" className="button button-ghost">
               Смотреть каталог
             </Link>
           </div>
@@ -143,8 +143,8 @@ export default async function HomePage() {
       <section id="catalog">
         <div className="section-head">
           <h2>Новое в каталоге</h2>
-          <Link href="/search" className="section-link">
-            Поиск по каталогу →
+          <Link href="/catalog?sort=added" className="section-link">
+            Весь каталог →
           </Link>
         </div>
         <TitleGrid titles={titles} stats={stats} />

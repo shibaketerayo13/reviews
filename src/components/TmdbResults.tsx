@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { posterUrl, type TmdbSearchItem } from "@/lib/tmdb";
 import { MEDIA_LABEL, yearOf } from "@/lib/types";
 import { addTitle } from "@/app/admin/actions";
@@ -26,7 +27,9 @@ export function TmdbResults({
               <div className="no-poster small">—</div>
             )}
             <div className="tmdb-info">
-              <strong>{name}</strong>
+              <Link href={`/tmdb/${item.media_type}/${item.id}`}>
+                <strong>{name}</strong>
+              </Link>
               <span className="muted small-text">
                 {MEDIA_LABEL[item.media_type]}{" "}
                 {yearOf(item.release_date ?? item.first_air_date)}
