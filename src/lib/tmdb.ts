@@ -50,11 +50,35 @@ async function tmdbFetch<T>(
   return res.json() as Promise<T>;
 }
 
-export const getTrending = (type: MediaType) =>
-  tmdbFetch<TmdbList>(`/trending/${type}/week`);
+export type ListSource = "popular" | "trending" | "top_rated";
 
-export const getPopular = (type: MediaType) =>
-  tmdbFetch<TmdbList>(`/${type}/popular`);
+export function isListSource(value: unknown): value is ListSource {
+  return value === "popular" || value === "trending" || value === "top_rated";
+}
+
+/** Одна страница списка TMDB (20 штук). */
+export function getList(type: MediaType, source: ListSource, page = 1) {
+  const path =
+    source === "trending" ? `/trending/${type}/week` : `/${type}/${source}`;
+  return tmdbFetch<TmdbList>(path, { page: String(page) });
+}
+
+type FindResult = {
+  movie_results: TmdbMedia[];
+  tv_results: TmdbMedia[];
+};
+
+/** Найти фильм или сериал в TMDB по IMDb ID (tt1234567). */
+export async function findByImdbId(
+  imdbId: string,
+): Promise<{ type: MediaType; media: TmdbMedia } | null> {
+  const data = await tmdbFetch<FindResult>(`/find/${imdbId}`, {
+    external_source: "imdb_id",
+  });
+  if (data.movie_results[0]) return { type: "movie", media: data.movie_results[0] };
+  if (data.tv_results[0]) return { type: "tv", media: data.tv_results[0] };
+  return null;
+}
 
 export const getDetails = (type: MediaType, id: number) =>
   tmdbFetch<TmdbMedia>(`/${type}/${id}`);

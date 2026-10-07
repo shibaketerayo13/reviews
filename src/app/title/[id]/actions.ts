@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/auth";
+import { isWatchStatus } from "@/lib/types";
 
 function titleIdFrom(formData: FormData): number {
   const id = Number(formData.get("title_id"));
@@ -11,15 +12,28 @@ function titleIdFrom(formData: FormData): number {
   return id;
 }
 
+function back(titleId: number, key: "message" | "error", text: string): never {
+  redirect(`/title/${titleId}?${key}=${encodeURIComponent(text)}`);
+}
+
+/** Добавить в профиль или обновить: статус, необязательная оценка и комментарий. */
 export async function saveRating(formData: FormData) {
   const titleId = titleIdFrom(formData);
   const user = await getUser();
   if (!user) redirect("/login");
 
-  const score = Number(formData.get("score"));
-  if (!Number.isInteger(score) || score < 1 || score > 10) {
-    redirect(`/title/${titleId}?error=` + encodeURIComponent("Выберите оценку от 1 до 10"));
+  const status = formData.get("status");
+  if (!isWatchStatus(status)) back(titleId, "error", "Выберите статус");
+
+  const rawScore = formData.get("score");
+  let score: number | null = null;
+  if (rawScore !== null && rawScore !== "") {
+    score = Number(rawScore);
+    if (!Number.isInteger(score) || score < 1 || score > 10) {
+      back(titleId, "error", "Оценка должна быть от 1 до 10");
+    }
   }
+
   const rawReview = formData.get("review");
   const review =
     typeof rawReview === "string" && rawReview.trim()
@@ -31,21 +45,21 @@ export async function saveRating(formData: FormData) {
     {
       user_id: user.id,
       title_id: titleId,
+      status,
       score,
       review,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,title_id" },
   );
-  if (error) {
-    redirect(`/title/${titleId}?error=` + encodeURIComponent("Не удалось сохранить оценку"));
-  }
+  if (error) back(titleId, "error", `Не удалось сохранить: ${error.message}`);
 
   revalidatePath(`/title/${titleId}`);
   revalidatePath("/profile");
-  redirect(`/title/${titleId}?message=` + encodeURIComponent("Оценка сохранена"));
+  back(titleId, "message", "Сохранено в профиле");
 }
 
+/** Убрать фильм из профиля целиком. */
 export async function deleteRating(formData: FormData) {
   const titleId = titleIdFrom(formData);
   const user = await getUser();
@@ -60,5 +74,5 @@ export async function deleteRating(formData: FormData) {
 
   revalidatePath(`/title/${titleId}`);
   revalidatePath("/profile");
-  redirect(`/title/${titleId}?message=` + encodeURIComponent("Оценка удалена"));
+  back(titleId, "message", "Убрано из профиля");
 }

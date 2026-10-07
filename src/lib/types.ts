@@ -25,6 +25,19 @@ export const MEDIA_LABEL: Record<Title["media_type"], string> = {
   tv: "Сериал",
 };
 
+export const WATCH_STATUSES = ["watched", "planned", "dropped"] as const;
+export type WatchStatus = (typeof WATCH_STATUSES)[number];
+
+export const STATUS_LABEL: Record<WatchStatus, string> = {
+  watched: "Просмотрено",
+  planned: "Посмотреть позже",
+  dropped: "Брошено",
+};
+
+export function isWatchStatus(value: unknown): value is WatchStatus {
+  return WATCH_STATUSES.includes(value as WatchStatus);
+}
+
 export function yearOf(date: string | null | undefined): string {
   return date ? date.slice(0, 4) : "";
 }

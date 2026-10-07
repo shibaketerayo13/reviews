@@ -5,12 +5,20 @@ import { createClient } from "@/lib/supabase/server";
 import { getUser } from "@/lib/auth";
 import { getTitleStats } from "@/lib/catalog";
 import { posterUrl } from "@/lib/tmdb";
-import { MEDIA_LABEL, yearOf, type Title } from "@/lib/types";
+import {
+  MEDIA_LABEL,
+  STATUS_LABEL,
+  WATCH_STATUSES,
+  yearOf,
+  type Title,
+  type WatchStatus,
+} from "@/lib/types";
 import { deleteRating, saveRating } from "./actions";
 
 type ReviewRow = {
   user_id: string;
-  score: number;
+  status: WatchStatus;
+  score: number | null;
   review: string | null;
   updated_at: string;
   profiles: { display_name: string | null } | null;
@@ -43,13 +51,15 @@ export default async function TitlePage({
     getTitleStats([id]),
     supabase
       .from("ratings")
-      .select("user_id, score, review, updated_at, profiles(display_name)")
+      .select("user_id, status, score, review, updated_at, profiles(display_name)")
       .eq("title_id", id)
       .order("updated_at", { ascending: false })
       .limit(100),
   ]);
-  const reviews = (reviewsData ?? []) as unknown as ReviewRow[];
-  const mine = user ? reviews.find((r) => r.user_id === user.id) : undefined;
+  const entries = (reviewsData ?? []) as unknown as ReviewRow[];
+  const mine = user ? entries.find((r) => r.user_id === user.id) : undefined;
+  // В блок отзывов попадают только записи с оценкой или комментарием
+  const reviews = entries.filter((r) => r.score !== null || r.review);
   const stat = stats.get(id);
   const poster = posterUrl(title.poster_path, "w500");
 
@@ -100,17 +110,32 @@ export default async function TitlePage({
       </section>
 
       <section className="panel">
-        <h2>{mine ? "Ваша оценка" : "Оценить"}</h2>
+        <h2>
+          {mine ? `В вашем профиле: ${STATUS_LABEL[mine.status].toLowerCase()}` : "Добавить в профиль"}
+        </h2>
         {user ? (
           <>
             <form action={saveRating} className="form">
               <input type="hidden" name="title_id" value={id} />
+              <fieldset className="status-picker">
+                <legend>Статус</legend>
+                {WATCH_STATUSES.map((s) => (
+                  <label key={s} className="status-option">
+                    <input
+                      type="radio"
+                      name="status"
+                      value={s}
+                      defaultChecked={(mine?.status ?? "watched") === s}
+                      required
+                    />
+                    <span>{STATUS_LABEL[s]}</span>
+                  </label>
+                ))}
+              </fieldset>
               <label>
-                Оценка
-                <select name="score" defaultValue={mine?.score ?? ""} required>
-                  <option value="" disabled>
-                    выберите
-                  </option>
+                Личная оценка (необязательно)
+                <select name="score" defaultValue={mine?.score ?? ""}>
+                  <option value="">без оценки</option>
                   {SCORES.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -119,29 +144,30 @@ export default async function TitlePage({
                 </select>
               </label>
               <label>
-                Отзыв (необязательно)
+                Комментарий (необязательно)
                 <textarea
                   name="review"
                   rows={4}
                   maxLength={5000}
                   defaultValue={mine?.review ?? ""}
+                  placeholder="Впечатления, заметки для себя…"
                 />
               </label>
-              <button type="submit">{mine ? "Обновить" : "Сохранить"}</button>
+              <button type="submit">{mine ? "Сохранить изменения" : "Добавить в профиль"}</button>
             </form>
             {mine && (
               <form action={deleteRating}>
                 <input type="hidden" name="title_id" value={id} />
                 <button type="submit" className="link-button danger">
-                  Удалить мою оценку
+                  Убрать из профиля
                 </button>
               </form>
             )}
           </>
         ) : (
           <p>
-            <Link href="/login">Войдите</Link>, чтобы поставить оценку и
-            написать отзыв.
+            <Link href="/login">Войдите</Link>, чтобы добавить фильм в профиль,
+            поставить оценку и оставить комментарий.
           </p>
         )}
       </section>
@@ -156,7 +182,8 @@ export default async function TitlePage({
               <li key={r.user_id} className="panel">
                 <p>
                   <strong>{r.profiles?.display_name ?? "Пользователь"}</strong>{" "}
-                  <span className="score">★ {r.score}/10</span>{" "}
+                  {r.score !== null && <span className="score">★ {r.score}/10</span>}{" "}
+                  <span className={`badge badge-${r.status}`}>{STATUS_LABEL[r.status]}</span>{" "}
                   <span className="muted small-text">
                     {new Date(r.updated_at).toLocaleDateString("ru-RU")}
                   </span>

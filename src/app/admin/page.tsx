@@ -5,7 +5,7 @@ import { existingKeys } from "@/lib/catalog";
 import { searchMovieTv, type TmdbSearchItem } from "@/lib/tmdb";
 import { TmdbResults } from "@/components/TmdbResults";
 import { MEDIA_LABEL, yearOf, type Title } from "@/lib/types";
-import { deleteTitle, importList, refreshTitle } from "./actions";
+import { deleteTitle, importImdb, importList, refreshTitle } from "./actions";
 
 export const metadata = { title: "Админка · reviews" };
 
@@ -83,26 +83,65 @@ export default async function AdminPage({
       </section>
 
       <section className="panel">
-        <h2>Быстрый импорт</h2>
+        <h2>IMDb Top 250</h2>
         <p className="muted small-text">
-          Добавляет 20 штук за раз, повторы пропускаются.
+          Лучшие фильмы по версии IMDb (снимок списка от 07.10.2026). Каждый
+          фильм ищется в TMDB по IMDb ID. Повторы не добавляются, кнопку можно
+          нажимать сколько угодно раз. Импорт 250 фильмов занимает около
+          минуты.
         </p>
-        <div className="button-row">
-          {(
-            [
-              ["movie", "popular", "Популярные фильмы"],
-              ["tv", "popular", "Популярные сериалы"],
-              ["movie", "trending", "Фильмы недели"],
-              ["tv", "trending", "Сериалы недели"],
-            ] as const
-          ).map(([type, source, label]) => (
-            <form action={importList} key={`${type}-${source}`}>
-              <input type="hidden" name="media_type" value={type} />
-              <input type="hidden" name="source" value={source} />
-              <button type="submit">{label}</button>
-            </form>
-          ))}
-        </div>
+        <form action={importImdb} className="inline-form">
+          <input type="hidden" name="preset" value="top" />
+          <select name="limit" defaultValue="200" aria-label="Сколько">
+            <option value="50">Топ 50</option>
+            <option value="100">Топ 100</option>
+            <option value="200">Топ 200</option>
+            <option value="250">Топ 250</option>
+          </select>
+          <button type="submit">Импортировать</button>
+        </form>
+      </section>
+
+      <section className="panel">
+        <h2>Импорт из списков TMDB</h2>
+        <p className="muted small-text">
+          Одна страница содержит 20 позиций. Повторы не добавляются: при
+          повторном импорте попадут только новые фильмы.
+        </p>
+        <form action={importList} className="inline-form">
+          <select name="source" defaultValue="top_rated" aria-label="Список">
+            <option value="top_rated">Лучшие по рейтингу</option>
+            <option value="popular">Популярные</option>
+            <option value="trending">Тренды недели</option>
+          </select>
+          <select name="media_type" defaultValue="movie" aria-label="Тип">
+            <option value="movie">Фильмы</option>
+            <option value="tv">Сериалы</option>
+          </select>
+          <select name="pages" defaultValue="5" aria-label="Сколько">
+            <option value="1">20 шт.</option>
+            <option value="5">100 шт.</option>
+            <option value="10">200 шт.</option>
+            <option value="25">500 шт.</option>
+          </select>
+          <button type="submit">Импортировать</button>
+        </form>
+      </section>
+
+      <section className="panel">
+        <h2>Импорт по списку IMDb ID</h2>
+        <p className="muted small-text">
+          Вставьте любой текст со ссылками или номерами вида tt0111161 (до
+          500 штук), например скопированный список с IMDb.
+        </p>
+        <form action={importImdb} className="form">
+          <textarea
+            name="ids"
+            rows={4}
+            placeholder="https://www.imdb.com/title/tt0111161/&#10;tt0068646"
+          />
+          <button type="submit">Импортировать</button>
+        </form>
       </section>
 
       <section>
