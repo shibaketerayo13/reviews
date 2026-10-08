@@ -134,15 +134,33 @@ async function linkAccount(chatId: number, from: TgUser, code: string) {
     return;
   }
 
-  const { data: row } = await db
+  const { data: row, error: readError } = await db
     .from("telegram_link_codes")
     .select("user_id, expires_at")
     .eq("code", code)
     .maybeSingle();
+  if (readError) {
+    console.error("[telegram] чтение кода привязки:", readError.message);
+    await send(
+      chatId,
+      "Бот не может прочитать базу сайта, поэтому привязка не прошла. " +
+        "Администратору: проверьте SUPABASE_SERVICE_ROLE_KEY и откройте /api/health.",
+    );
+    return;
+  }
   // Код одноразовый: удаляем сразу
   await db.from("telegram_link_codes").delete().eq("code", code);
 
-  if (!row || new Date(row.expires_at as string).getTime() < Date.now()) {
+  if (!row) {
+    console.error("[telegram] код привязки не найден");
+    await send(
+      chatId,
+      "Не нашёл эту ссылку для привязки: она уже использована или заменена новой. " +
+        "Нажмите «Привязать Telegram» в профиле ещё раз и сразу нажмите Start.",
+    );
+    return;
+  }
+  if (new Date(row.expires_at as string).getTime() < Date.now()) {
     await send(
       chatId,
       "Ссылка для привязки устарела (она действует 15 минут). Нажмите «Привязать Telegram» в профиле ещё раз.",
@@ -160,6 +178,7 @@ async function linkAccount(chatId: number, from: TgUser, code: string) {
     telegram_username: from.username ?? null,
   });
   if (error) {
+    console.error("[telegram] сохранение привязки:", error.message);
     await send(chatId, "Не получилось привязать аккаунт. Попробуйте ещё раз чуть позже.");
     return;
   }
