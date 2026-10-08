@@ -15,7 +15,7 @@ import {
 } from "@/lib/import";
 import { commitImport, previewImport, searchAgain } from "@/app/profile/import/actions";
 
-const POSTER = "https://image.tmdb.org/t/p/w92";
+const POSTER = "/img/t/w92"; // постеры через прокси сайта (lib/images.ts)
 const TYPE = { movie: "Фильм", tv: "Сериал" } as const;
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 

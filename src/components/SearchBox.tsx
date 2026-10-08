@@ -6,7 +6,7 @@ import type { Suggestion, SuggestResponse } from "@/app/api/suggest/route";
 import type { UserHit } from "@/lib/users";
 import { Avatar } from "./Avatar";
 
-const POSTER = "https://image.tmdb.org/t/p/w92";
+const POSTER = "/img/t/w92"; // постеры через прокси сайта (lib/images.ts)
 const TYPE_LABEL = { movie: "Фильм", tv: "Сериал" } as const;
 
 type Option =

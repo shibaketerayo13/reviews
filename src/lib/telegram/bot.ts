@@ -6,7 +6,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { toIlikePattern } from "@/lib/search";
 import {
   getDetails,
-  posterUrl,
+  IMAGE_BASE_URL,
   searchMovieTv,
   toTitleRow,
   type MediaType,
@@ -505,7 +505,8 @@ function renderCard(
 async function sendTitleCard(chatId: number, user: Linked, title: Title, ctx: Ctx, note?: string) {
   const card = await loadCard(user.userId, title.id);
   const { caption, keyboard } = renderCard(card, ctx, note);
-  const photo = posterUrl(card.title.poster_path, "w500");
+  // Telegram скачивает картинку сам, поэтому здесь прямой адрес TMDB, а не прокси сайта
+  const photo = card.title.poster_path ? `${IMAGE_BASE_URL}/w500${card.title.poster_path}` : null;
   if (photo) {
     try {
       await tg("sendPhoto", {

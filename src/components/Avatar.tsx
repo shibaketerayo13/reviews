@@ -1,4 +1,6 @@
 // Аватар пользователя: картинка или инициалы на цветном фоне.
+import { avatarSrc } from "@/lib/images";
+
 function hueFrom(text: string): number {
   let h = 0;
   for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 360;
@@ -23,11 +25,12 @@ export function Avatar({
   className?: string;
 }) {
   const style = { width: size, height: size, fontSize: Math.round(size * 0.38) };
-  if (url) {
+  const src = avatarSrc(url);
+  if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={url}
+        src={src}
         alt=""
         width={size}
         height={size}

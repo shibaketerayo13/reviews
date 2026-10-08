@@ -1,4 +1,5 @@
 // Клиент TMDB API v3. Работает только на сервере: токен не должен попасть в браузер.
+import { tmdbImg } from "@/lib/images";
 const BASE_URL = "https://api.themoviedb.org/3";
 export const IMAGE_BASE_URL = "https://image.tmdb.org/t/p";
 
@@ -99,8 +100,8 @@ export async function searchMovieTv(query: string): Promise<TmdbSearchItem[]> {
   );
 }
 
-export const posterUrl = (path: string | null, size = "w500") =>
-  path ? `${IMAGE_BASE_URL}/${size}${path}` : null;
+/** Картинка TMDB через прокси сайта (/img/t/…), см. lib/images.ts. */
+export const posterUrl = (path: string | null, size = "w500") => tmdbImg(path, size);
 
 /** Строка для таблицы titles в Supabase. */
 export function toTitleRow(type: MediaType, m: TmdbMedia) {

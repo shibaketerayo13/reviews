@@ -8,7 +8,7 @@ import { removeEntry, updateEntry } from "@/app/profile/actions";
 import { FavoriteButton } from "./FavoriteButton";
 import { MEDIA_LABEL, STATUS_LABEL, WATCH_STATUSES, type WatchStatus } from "@/lib/types";
 
-const POSTER = "https://image.tmdb.org/t/p";
+const POSTER = "/img/t"; // постеры через прокси сайта (lib/images.ts)
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export type ProfileEntry = {
