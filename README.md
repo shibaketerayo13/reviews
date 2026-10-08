@@ -12,6 +12,7 @@
 - Каталог фильмов и сериалов, страница тайтла, оценка 1–10 и текстовый отзыв
 - Поиск: сначала по каталогу сайта, затем в TMDB по тому, чего в каталоге ещё нет
 - Админка `/admin`: докачка из TMDB по поиску, быстрый импорт популярного и трендового, обновление и удаление
+- Telegram-бот: присылаешь название фильма — бот находит его на сайте или докачивает из TMDB и предлагает поставить оценку
 
 ## Первый запуск
 
@@ -31,8 +32,20 @@
 | `TMDB_READ_ACCESS_TOKEN` | TMDB → Settings → API → API Read Access Token |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → publishable / anon key |
+| `TELEGRAM_BOT_TOKEN` | @BotFather → `/newbot` (необязательно, для бота) |
+| `TELEGRAM_BOT_USERNAME` | имя бота без `@` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys → service_role (только сервер!) |
 
 `.env.local` в `.gitignore`: ключи нельзя коммитить, репозиторий публичный.
+
+## Telegram-бот
+
+1. Создайте бота у @BotFather, выполните миграцию `supabase/migrations/009_telegram.sql`.
+2. Добавьте три переменные из таблицы выше в Vercel и сделайте Redeploy.
+3. В админке нажмите «Подключить бота» — сайт сообщит Telegram адрес вебхука `/api/telegram/webhook`.
+4. Пользователь привязывает Telegram в профиле кнопкой «Привязать Telegram» (одноразовая ссылка на 15 минут, пароль в бота не вводится).
+
+Через бота любой привязанный пользователь может добавить в каталог до 30 новых фильмов в сутки.
 
 ## База данных
 
@@ -40,6 +53,7 @@
 - `titles`: каталог; добавлять и менять может только админ
 - `ratings`: оценка 1–10 и отзыв, одна запись на пользователя и тайтл
 - `title_stats`: представление со средней оценкой и числом оценок
+- `telegram_links`, `telegram_link_codes`: привязка Telegram к аккаунту
 
 Права закреплены в базе через Row Level Security, а не только в коде сайта.
 
@@ -52,5 +66,6 @@
 - `src/app/title/[id]`: страница тайтла, оценка и отзывы
 - `src/app/search`: поиск
 - `src/app/admin`: админка
+- `src/lib/telegram`, `src/app/api/telegram/webhook`: Telegram-бот
 
 Данные о фильмах и сериалах предоставлены TMDB. Этот продукт использует API TMDB, но не одобрен и не сертифицирован TMDB.

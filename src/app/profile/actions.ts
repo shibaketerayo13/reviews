@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { cleanEntry, deleteEntry, upsertEntry } from "@/lib/entries";
+import { botUsername } from "@/lib/telegram/api";
 
 const BUCKET = "avatars";
 
@@ -169,6 +170,34 @@ export async function toggleFavorite(
   revalidatePath("/profile");
   revalidatePath(`/title/${id}`);
   return { ok: true };
+}
+
+/* ---------- Telegram-бот ---------- */
+
+/** Выдаёт одноразовый код и открывает бота: t.me/бот?start=код. */
+export async function startTelegramLink() {
+  await requireUser();
+  const bot = botUsername();
+  if (!bot) {
+    redirect("/profile?error=" + encodeURIComponent("Telegram-бот ещё не подключён"));
+  }
+  const supabase = await createClient();
+  const { data: code, error } = await supabase.rpc("create_telegram_link_code");
+  if (error || typeof code !== "string") {
+    redirect("/profile?error=" + encodeURIComponent("Не удалось начать привязку Telegram"));
+  }
+  redirect(`https://t.me/${bot}?start=${code}`);
+}
+
+export async function unlinkTelegram() {
+  const user = await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.from("telegram_links").delete().eq("user_id", user.id);
+  if (error) {
+    redirect("/profile?error=" + encodeURIComponent("Не удалось отвязать Telegram"));
+  }
+  revalidatePath("/profile");
+  redirect("/profile?message=" + encodeURIComponent("Telegram отвязан"));
 }
 
 /* ---------- Короткое имя для ссылки на профиль ---------- */

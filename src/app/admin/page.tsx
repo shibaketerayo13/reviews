@@ -5,7 +5,8 @@ import { existingKeys } from "@/lib/catalog";
 import { searchMovieTv, type TmdbSearchItem } from "@/lib/tmdb";
 import { TmdbResults } from "@/components/TmdbResults";
 import { MEDIA_LABEL, yearOf, type Title } from "@/lib/types";
-import { deleteTitle, importImdb, importList, refreshTitle } from "./actions";
+import { botToken, botUsername, tg } from "@/lib/telegram/api";
+import { connectTelegram, deleteTitle, importImdb, importList, refreshTitle } from "./actions";
 
 export const metadata = { title: "Админка · reviews" };
 
@@ -40,6 +41,11 @@ export default async function AdminPage({
     }
   }
   const missing = results.filter((r) => !inCatalog.has(`${r.media_type}:${r.id}`));
+
+  const bot = botUsername();
+  const webhook = botToken()
+    ? await tg<{ url: string; last_error_message?: string }>("getWebhookInfo").catch(() => null)
+    : null;
   const alreadyCount = results.length - missing.length;
 
   return (
@@ -78,6 +84,29 @@ export default async function AdminPage({
             ) : (
               <p className="muted">Нечего добавлять.</p>
             )}
+          </>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Telegram-бот</h2>
+        {!botToken() || !bot ? (
+          <p className="muted small-text">
+            Бот не настроен: добавьте в Vercel переменные TELEGRAM_BOT_TOKEN,
+            TELEGRAM_BOT_USERNAME и SUPABASE_SERVICE_ROLE_KEY и сделайте Redeploy.
+          </p>
+        ) : (
+          <>
+            <p className="muted small-text">
+              Бот <a href={`https://t.me/${bot}`} target="_blank" rel="noreferrer">@{bot}</a>.{" "}
+              {webhook?.url
+                ? `Подключён: ${webhook.url}`
+                : "Ещё не подключён: нажмите кнопку, чтобы Telegram начал присылать сообщения на сайт."}
+              {webhook?.last_error_message && ` Последняя ошибка: ${webhook.last_error_message}`}
+            </p>
+            <form action={connectTelegram} className="inline-form">
+              <button type="submit">{webhook?.url ? "Переподключить" : "Подключить бота"}</button>
+            </form>
           </>
         )}
       </section>

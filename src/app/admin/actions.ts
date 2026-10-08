@@ -18,6 +18,9 @@ import { IMDB_TOP_250 } from "@/data/imdb-top-250";
 import { IMDB_TOP_250_TV } from "@/data/imdb-top-250-tv";
 import { safeNext, withParam } from "@/lib/redirect";
 import { mapLimited } from "@/lib/async";
+import { headers } from "next/headers";
+import { botToken, tg, webhookSecret } from "@/lib/telegram/api";
+import { siteUrl } from "@/lib/telegram/site";
 
 async function assertAdmin() {
   const profile = await getProfile();
@@ -174,6 +177,44 @@ export async function deleteTitle(formData: FormData) {
 
   revalidatePath("/");
   done("/admin", "message", "Удалено из каталога");
+}
+
+/** Подключить Telegram-бота: сказать Telegram, куда присылать сообщения. */
+export async function connectTelegram() {
+  await assertAdmin();
+  if (!botToken()) done("/admin", "error", "Не задан TELEGRAM_BOT_TOKEN в переменных окружения");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    done("/admin", "error", "Не задан SUPABASE_SERVICE_ROLE_KEY в переменных окружения");
+  }
+
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
+  const url = `${siteUrl(origin)}/api/telegram/webhook`;
+  if (!url.startsWith("https://")) {
+    done("/admin", "error", `Telegram принимает только https-адреса, а сейчас ${url}. Подключайте на сайте Vercel.`);
+  }
+
+  try {
+    await tg("setWebhook", {
+      url,
+      secret_token: webhookSecret(),
+      allowed_updates: ["message", "callback_query"],
+    });
+    await tg("setMyCommands", {
+      commands: [
+        { command: "help", description: "Как пользоваться" },
+        { command: "unlink", description: "Отвязать Telegram от аккаунта" },
+      ],
+    });
+    await tg("setMyDescription", {
+      description:
+        "Бот сайта reviews: пришлите название фильма или сериала, и я найду его на сайте, " +
+        "добавлю из TMDB, если его нет, и помогу поставить оценку.",
+    });
+  } catch (e) {
+    done("/admin", "error", e instanceof Error ? e.message : "Не удалось подключить бота");
+  }
+  done("/admin", "message", `Бот подключён: ${url}`);
 }
 
 /** Заменить фильм в каталоге на другой из TMDB (исправление неверного совпадения). */

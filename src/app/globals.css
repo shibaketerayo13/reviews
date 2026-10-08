@@ -53,6 +53,10 @@
 html {
   scroll-behavior: smooth;
   scroll-padding-top: calc(var(--header-h) + 16px);
+  /* Страховка: ничто не должно сдвигать страницу вбок на телефоне */
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -2469,6 +2473,40 @@ textarea {
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+/* ---------- Telegram в профиле ---------- */
+.tg-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--paper-dim);
+}
+.tg-link form {
+  margin: 0;
+}
+.tg-link .link-button {
+  font-size: 0.85rem;
+}
+.tg-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: #5aa9e6;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.tg-connect {
+  color: var(--paper-dim);
+  text-align: left;
+}
+.tg-connect:hover {
+  color: var(--accent-hover);
+}
 .import-page {
   max-width: 900px;
 }
@@ -2825,8 +2863,13 @@ textarea {
 
 /* ---------- Адаптив ---------- */
 @media (max-width: 980px) {
+  /* minmax(0, 1fr), а не 1fr: иначе лента актёров распирает колонку до 2000+ px
+     и вся страница фильма уезжает вбок на телефоне */
   .title-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .title-main {
+    min-width: 0;
   }
   /* На узком экране форма идёт сразу под описанием, до актёров */
   .title-aside {
@@ -2948,6 +2991,124 @@ textarea {
   }
   .page-step {
     order: 2;
+  }
+
+  /* Заголовок секции и подпись: подпись уходит на свою строку, а не сжимает заголовок */
+  .section-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+  .section-note {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  /* Вкладки профиля: переносятся на вторую строку, а не прячутся за краем экрана.
+     Не «липнут» к шапке, чтобы не съедать треть экрана */
+  .tabs {
+    position: static;
+    align-items: flex-start;
+    background: none;
+  }
+  .tabs-list {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .tab {
+    padding: 7px 12px;
+    font-size: 0.85rem;
+    gap: 6px;
+  }
+
+  /* Подсказки поиска не длиннее экрана с открытой клавиатурой */
+  .suggest {
+    max-height: min(60dvh, 480px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Окно редактирования оценки на телефоне выезжает снизу, как обычная «шторка» */
+@media (max-width: 560px) {
+  .modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    margin: auto 0 0;
+  }
+  .modal-panel {
+    max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .modal-head {
+    grid-template-columns: 56px 1fr auto;
+    gap: 14px;
+    padding: 20px 18px 6px;
+  }
+  .modal-head h2 {
+    font-size: 1.4rem;
+  }
+  .modal-body {
+    padding: 14px 18px 6px;
+  }
+  .modal-foot {
+    padding: 14px 18px 18px;
+  }
+}
+
+/* ---------- Сенсорные экраны ---------- */
+@media (hover: none) and (pointer: coarse) {
+  /* iOS увеличивает страницу при фокусе на поле со шрифтом меньше 16 px
+     и не возвращает масштаб обратно; 16 px это отключает */
+  input,
+  select,
+  textarea,
+  .search input,
+  .profile-search input {
+    font-size: 16px;
+  }
+
+  /* На телефоне «наведение» залипает после касания: карточки остаются
+     приподнятыми, а при возврате назад смещены. Убираем эффекты наведения */
+  .card:hover .card-poster,
+  .card:hover .card-poster img,
+  .card.is-external:hover .card-poster img,
+  .fav-tile:hover,
+  .fav-tile:hover img,
+  .entry:hover {
+    transform: none;
+  }
+  .card:hover .card-poster {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  }
+  .fav-tile:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  /* Подписи под любимыми видны сразу: навести курсор на телефоне нельзя */
+  .fav-caption {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Плёночное зерно на весь экран с режимом наложения тормозит прокрутку
+     на телефонах, поэтому там оно отключено */
+  body::after {
+    display: none;
+  }
+
+  /* Без серой вспышки при касании и без задержки двойного тапа */
+  a,
+  button,
+  label,
+  summary,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 }
 

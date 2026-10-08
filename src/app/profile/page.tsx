@@ -4,6 +4,7 @@ import { AvatarUploader } from "@/components/AvatarUploader";
 import { ProfileEntries } from "@/components/ProfileEntries";
 import { FavoritesRow, ProfileStats, ProfileTabsNav } from "@/components/ProfileSections";
 import { ShareProfile } from "@/components/ShareProfile";
+import { TelegramLink } from "@/components/TelegramLink";
 import {
   formatSince,
   loadProfileData,
@@ -86,6 +87,7 @@ export default async function ProfilePage({
           <Link href="/profile/import" className="profile-import-link">
             Импорт оценок списком →
           </Link>
+          <TelegramLink userId={user.id} />
         </div>
 
         <ProfileStats counts={counts} avg={avg} />
