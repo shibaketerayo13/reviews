@@ -22,6 +22,7 @@ import {
   type TgUpdate,
   type TgUser,
 } from "./api";
+import { sendPromo } from "./welcome";
 
 /** Сколько новых фильмов один пользователь может добавить в каталог за сутки. */
 const DAILY_ADD_LIMIT = 30;
@@ -61,7 +62,7 @@ async function onMessage(msg: TgMessage, ctx: Ctx) {
 
   const start = text.match(/^\/start(?:@\w+)?(?:\s+(\S+))?$/);
   if (start) {
-    if (start[1]) await linkAccount(chatId, msg.from, start[1]);
+    if (start[1]) await linkAccount(chatId, msg.from, start[1], ctx);
     else await sendWelcome(chatId, msg.from, ctx);
     return;
   }
@@ -86,18 +87,19 @@ async function onMessage(msg: TgMessage, ctx: Ctx) {
   await search(chatId, user, text, ctx);
 }
 
+/** /start без кода: промо-ролик и короткое описание сайта и бота. */
 async function sendWelcome(chatId: number, from: TgUser, ctx: Ctx) {
   const user = await linkedUser(from.id);
-  if (!user) {
-    await sendNeedLink(chatId, ctx);
-    return;
+  let name: string | null = null;
+  if (user) {
+    const { data: profile } = await createServiceClient()
+      .from("profiles")
+      .select("display_name, username")
+      .eq("id", user.userId)
+      .maybeSingle();
+    name = (profile?.display_name as string | null) ?? (profile?.username as string | null) ?? "";
   }
-  await send(
-    chatId,
-    "Пришлите название фильма или сериала, можно с годом: <i>Интерстеллар 2014</i>.\n\n" +
-      "Если он уже есть на сайте, я покажу его и предложу поставить оценку. " +
-      "Если нет — найду в TMDB и добавлю.",
-  );
+  await sendPromo(chatId, ctx, name);
 }
 
 async function sendHelp(chatId: number) {
@@ -127,7 +129,7 @@ async function sendNeedLink(chatId: number, ctx: Ctx) {
 
 /* ---------- Привязка аккаунта ---------- */
 
-async function linkAccount(chatId: number, from: TgUser, code: string) {
+async function linkAccount(chatId: number, from: TgUser, code: string, ctx: Ctx) {
   const db = createServiceClient();
   if (!/^[a-f0-9]{48}$/.test(code)) {
     await send(chatId, "Ссылка для привязки неверная. Нажмите «Привязать Telegram» в профиле ещё раз.");
@@ -191,11 +193,9 @@ async function linkAccount(chatId: number, from: TgUser, code: string) {
   const name = (profile?.display_name as string | null) ?? (profile?.username as string | null) ?? "";
   revalidatePath("/profile");
 
-  await send(
-    chatId,
-    `Готово! Telegram привязан к аккаунту <b>${esc(name)}</b>.\n\n` +
-      "Теперь пришлите название фильма или сериала, например: <i>Интерстеллар 2014</i>.",
-  );
+  await send(chatId, `Готово! Telegram привязан к аккаунту <b>${esc(name)}</b>.`);
+  // Новый пользователь приходит сюда по ссылке из профиля: сразу показываем ролик и как всё работает
+  await sendPromo(chatId, ctx, name);
 }
 
 async function unlink(chatId: number, from: TgUser) {
