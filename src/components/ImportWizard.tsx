@@ -5,7 +5,7 @@ import Link from "next/link";
 import { chunk } from "@/lib/async";
 import {
   MAX_LINES,
-  STATUS_TEXT,
+  IMPORT_STATUSES,
   parseLines,
   type ImportStatus,
   type Candidate,
@@ -14,9 +14,10 @@ import {
   type PreviewRow,
 } from "@/lib/import";
 import { commitImport, previewImport, searchAgain } from "@/app/profile/import/actions";
+import { useI18n } from "./I18nProvider";
+import { fmt } from "@/lib/i18n/config";
 
 const POSTER = "/img/t/w92"; // постеры через прокси сайта (lib/images.ts)
-const TYPE = { movie: "Фильм", tv: "Сериал" } as const;
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 type Row = PreviewRow & {
@@ -24,12 +25,9 @@ type Row = PreviewRow & {
   query: string;
 };
 
-const EXAMPLE = `Начало (2010) — 9
-Интерстеллар (2014) — 10
-Во все тяжкие (2008) — 9
-Остров проклятых (2010)`;
-
 export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
+  const { t } = useI18n();
+  const im = t.import;
   const [step, setStep] = useState<"paste" | "review" | "done">("paste");
   const [text, setText] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
@@ -56,7 +54,7 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
       setRows(all);
       setStep("review");
     } catch {
-      setError("Не удалось связаться с сервером. Попробуйте ещё раз.");
+      setError(t.errors.network);
     } finally {
       setProgress(null);
     }
@@ -93,7 +91,7 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
       if (res.ok) setStep("done");
       else setError(res.error);
     } catch {
-      setError("Не удалось сохранить. Попробуйте ещё раз.");
+      setError(im.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -105,30 +103,28 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
   if (step === "done" && result?.ok) {
     return (
       <div className="empty import-done reveal">
-        <p className="empty-title">Готово</p>
+        <p className="empty-title">{im.done}</p>
         <p>
-          В профиль добавлено: <strong>{result.imported}</strong>
+          {im.imported} <strong>{result.imported}</strong>
           {result.addedToCatalog > 0 && (
             <>
               {" "}
-              · новых в каталоге: <strong>{result.addedToCatalog}</strong>
+              · {im.newInCatalog} <strong>{result.addedToCatalog}</strong>
             </>
           )}
           {result.skipped > 0 && (
             <>
               {" "}
-              · пропущено: <strong>{result.skipped}</strong>
+              · {im.skipped} <strong>{result.skipped}</strong>
             </>
           )}
         </p>
         {result.skipped > 0 && !isAdmin && (
-          <p className="muted small-text">
-            Пропущенных фильмов нет в каталоге сайта, добавить их может администратор.
-          </p>
+          <p className="muted small-text">{im.skippedHint}</p>
         )}
         <div className="hero-actions">
           <Link href="/profile" className="button">
-            Открыть профиль
+            {im.openProfile}
           </Link>
           <button
             type="button"
@@ -140,7 +136,7 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
               setStep("paste");
             }}
           >
-            Импортировать ещё
+            {im.more}
           </button>
         </div>
       </div>
@@ -152,17 +148,17 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
       <>
         <div className="import-bar">
           <span>
-            Строк: <strong>{rows.length}</strong> · к импорту: <strong>{selected}</strong>
+            {im.rows} <strong>{rows.length}</strong> · {im.toImport} <strong>{selected}</strong>
             {notFound > 0 && (
               <>
                 {" "}
-                · не найдено: <strong className="accent">{notFound}</strong>
+                · {im.notFound} <strong className="accent">{notFound}</strong>
               </>
             )}
           </span>
           <div className="import-bar-actions">
             <button type="button" className="button button-ghost button-small" onClick={() => setStep("paste")}>
-              ← Назад
+              {t.common.back}
             </button>
             <button
               type="button"
@@ -170,7 +166,7 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
               disabled={saving || selected === 0}
               onClick={commit}
             >
-              {saving ? "Сохраняю…" : `Импортировать ${selected}`}
+              {saving ? t.common.saving : fmt(im.importN, { n: selected })}
             </button>
           </div>
         </div>
@@ -191,23 +187,23 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
                 </div>
 
                 <div className="import-main">
-                  <p className="import-raw" title="Исходная строка">
+                  <p className="import-raw" title={im.sourceLine}>
                     {r.raw}
                   </p>
                   {r.candidates.length > 0 ? (
                     <select
                       value={r.choice}
                       onChange={(e) => update(i, { choice: Number(e.target.value) })}
-                      aria-label="Совпадение"
+                      aria-label={im.match}
                     >
                       {r.candidates.map((cand, k) => (
                         <option key={k} value={k}>
                           {cand.title}
-                          {cand.year ? ` (${cand.year})` : ""} · {TYPE[cand.media_type]}
+                          {cand.year ? ` (${cand.year})` : ""} · {t.media[cand.media_type]}
                           {cand.original && cand.original !== cand.title ? ` · ${cand.original}` : ""}
                         </option>
                       ))}
-                      <option value={-1}>— пропустить</option>
+                      <option value={-1}>{im.skip}</option>
                     </select>
                   ) : (
                     <form
@@ -220,10 +216,10 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
                       <input
                         value={r.query}
                         onChange={(e) => update(i, { query: e.target.value })}
-                        aria-label="Название для поиска"
+                        aria-label={im.searchTitle}
                       />
                       <button type="submit" className="button button-small button-ghost">
-                        Искать
+                        {t.common.find}
                       </button>
                     </form>
                   )}
@@ -233,11 +229,11 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
                   className="import-status"
                   value={r.status}
                   onChange={(e) => update(i, { status: e.target.value as ImportStatus })}
-                  aria-label="Статус"
+                  aria-label={t.common.status}
                 >
-                  {(Object.keys(STATUS_TEXT) as ImportStatus[]).map((s) => (
+                  {IMPORT_STATUSES.map((s) => (
                     <option key={s} value={s}>
-                      {STATUS_TEXT[s]}
+                      {t.status[s]}
                     </option>
                   ))}
                 </select>
@@ -249,7 +245,7 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
                   onChange={(e) =>
                     update(i, { score: e.target.value ? Number(e.target.value) : null })
                   }
-                  aria-label="Оценка"
+                  aria-label={t.common.score}
                 >
                   <option value="">—</option>
                   {SCORES.map((s) => (
@@ -269,24 +265,20 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="import-paste">
       <label className="field">
-        <span>
-          По одному фильму или сериалу в строке: название, год в скобках и оценка после
-          тире. Год и оценку можно не указывать. Строка «## Посмотреть позже» или
-          «## Брошено» меняет статус для всех строк ниже.
-        </span>
+        <span>{im.instructions}</span>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={14}
-          placeholder={EXAMPLE}
+          placeholder={im.example}
           spellCheck={false}
         />
       </label>
       {error && <p className="notice error">{error}</p>}
       <div className="import-paste-foot">
         <span className="muted small-text">
-          Распознано строк: {parsed.length}
-          {parsed.length >= MAX_LINES && ` (максимум ${MAX_LINES} за раз)`}
+          {fmt(im.recognized, { n: parsed.length })}
+          {parsed.length >= MAX_LINES && fmt(im.maxLines, { n: MAX_LINES })}
         </span>
         <button
           type="button"
@@ -294,7 +286,7 @@ export function ImportWizard({ isAdmin }: { isAdmin: boolean }) {
           disabled={parsed.length === 0 || progress !== null}
           onClick={check}
         >
-          {progress ? `Ищу в TMDB… ${progress.done}/${progress.total}` : "Проверить"}
+          {progress ? fmt(im.searching, progress) : im.check}
         </button>
       </div>
       {progress && (

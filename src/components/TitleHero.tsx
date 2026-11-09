@@ -1,22 +1,20 @@
 import Image from "next/image";
 import { posterUrl } from "@/lib/tmdb";
-
-function plural(n: number, one: string, few: string, many: string) {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}
+import { fmt, plural, type Locale } from "@/lib/i18n/config";
+import type { Dict } from "@/lib/i18n";
 
 /** «Фильм · 2010 · 2 ч 28 мин · фантастика, боевик» */
 export function metaLine({
+  locale,
+  t,
   typeLabel,
   year,
   runtime,
   seasons,
   genres,
 }: {
+  locale: Locale;
+  t: Dict;
   typeLabel: string;
   year: string;
   runtime: number | null;
@@ -25,11 +23,13 @@ export function metaLine({
 }): string {
   const parts = [typeLabel];
   if (year) parts.push(year);
-  if (seasons) parts.push(`${seasons} ${plural(seasons, "сезон", "сезона", "сезонов")}`);
+  if (seasons) parts.push(plural(locale, seasons, t.plural.seasons));
   if (runtime) {
     const h = Math.floor(runtime / 60);
     const m = runtime % 60;
-    parts.push(h ? `${h} ч${m ? ` ${m} мин` : ""}` : `${m} мин`);
+    const hours = fmt(t.title.hours, { h });
+    const minutes = fmt(t.title.minutes, { m });
+    parts.push(h ? (m ? `${hours} ${minutes}` : hours) : minutes);
   }
   if (genres.length) parts.push(genres.slice(0, 3).join(", ").toLowerCase());
   return parts.join(" · ");

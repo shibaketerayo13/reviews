@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import type { Suggestion, SuggestResponse } from "@/app/api/suggest/route";
 import type { UserHit } from "@/lib/users";
 import { Avatar } from "./Avatar";
+import { useI18n } from "./I18nProvider";
+import { fmt } from "@/lib/i18n/config";
 
 const POSTER = "/img/t/w92"; // постеры через прокси сайта (lib/images.ts)
-const TYPE_LABEL = { movie: "Фильм", tv: "Сериал" } as const;
 
 type Option =
   | { kind: "title"; href: string; item: Suggestion }
@@ -16,6 +17,7 @@ type Option =
 
 export function SearchBox() {
   const router = useRouter();
+  const { t } = useI18n();
   const listId = useId();
   const box = useRef<HTMLFormElement>(null);
   const [q, setQ] = useState("");
@@ -140,20 +142,20 @@ export function SearchBox() {
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => (items.length || users.length) && setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder="Фильм, сериал или @человек"
+        placeholder={t.search.placeholder}
         autoComplete="off"
         role="combobox"
         aria-expanded={showPanel}
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
-        aria-label="Поиск"
+        aria-label={t.search.label}
       />
       {loading && <span className="search-spinner" aria-hidden="true" />}
 
       {showPanel && (
         <div className="suggest" id={listId} role="listbox">
-          {nothing && <p className="suggest-empty">Ничего не нашлось</p>}
+          {nothing && <p className="suggest-empty">{t.search.empty}</p>}
 
           {options.map((opt, i) => {
             if (opt.kind === "title") {
@@ -174,7 +176,7 @@ export function SearchBox() {
                   <span className="suggest-text">
                     <span className="suggest-title">{it.title}</span>
                     <span className="suggest-meta">
-                      {TYPE_LABEL[it.media_type]}
+                      {t.media[it.media_type]}
                       {it.year && ` · ${it.year}`}
                       {it.original_title &&
                         it.original_title !== it.title &&
@@ -193,7 +195,7 @@ export function SearchBox() {
               const firstUser = i === items.length;
               return (
                 <div key={`u${u.username}`} className="suggest-group">
-                  {firstUser && <p className="suggest-label">Люди</p>}
+                  {firstUser && <p className="suggest-label">{t.search.people}</p>}
                   <a
                     {...optionProps(i, opt.href)}
                     className={`suggest-item suggest-user${active === i ? " is-active" : ""}`}
@@ -214,7 +216,7 @@ export function SearchBox() {
                 {...optionProps(i, opt.href)}
                 className={`suggest-all${active === i ? " is-active" : ""}`}
               >
-                Все результаты по «{term}» →
+                {fmt(t.search.allResults, { q: term })}
               </a>
             );
           })}

@@ -1,8 +1,10 @@
 // Подсказки для живого поиска: до 8 фильмов из каталога и до 4 пользователей.
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { toIlikePattern } from "@/lib/search";
+import { searchTitles } from "@/lib/title-search";
 import { searchUsers, type UserHit } from "@/lib/users";
+import { getLocale } from "@/lib/i18n/server";
+import { localTitle, type TitleTranslations } from "@/lib/i18n/content";
 
 export const dynamic = "force-dynamic";
 
@@ -23,29 +25,33 @@ export async function GET(request: NextRequest) {
   if (q.length < 2) return NextResponse.json({ items: [], users: [] });
 
   const supabase = await createClient();
-  const pattern = toIlikePattern(q.replace(/^@/, ""));
   // «@имя» — ищем только людей
   const onlyUsers = q.startsWith("@");
-  const [titlesRes, users] = await Promise.all([
-    supabase
-      .from("titles")
-      .select("id, title, original_title, media_type, release_date, poster_path, tmdb_rating")
-      .or(`title.ilike.${pattern},original_title.ilike.${pattern}`)
-      .order("tmdb_rating", { ascending: false, nullsFirst: false })
-      .limit(onlyUsers ? 0 : 8),
+  type Row = {
+    id: number;
+    title: string;
+    original_title: string | null;
+    media_type: "movie" | "tv";
+    release_date: string | null;
+    poster_path: string | null;
+    tmdb_rating: number | null;
+    translations?: TitleTranslations | null;
+  };
+  const [titlesRes, users, locale] = await Promise.all([
+    onlyUsers
+      ? Promise.resolve({ data: [] as Row[], error: null })
+      : searchTitles<Row>(supabase, q, "*", 8),
     searchUsers(q, onlyUsers ? 8 : 4).catch((): UserHit[] => []),
+    getLocale(),
   ]);
 
   if (titlesRes.error) {
-    return NextResponse.json(
-      { items: [], users, error: titlesRes.error.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ items: [], users, error: titlesRes.error }, { status: 500 });
   }
 
-  const items: Suggestion[] = (titlesRes.data ?? []).map((t) => ({
+  const items: Suggestion[] = titlesRes.data.map((t) => ({
     id: t.id,
-    title: t.title,
+    title: localTitle(t, locale),
     original_title: t.original_title,
     media_type: t.media_type,
     year: t.release_date ? String(t.release_date).slice(0, 4) : "",
@@ -54,5 +60,6 @@ export async function GET(request: NextRequest) {
   }));
 
   const body: SuggestResponse = { items, users };
-  return NextResponse.json(body, { headers: { "Cache-Control": "private, max-age=30" } });
+  // Ответ зависит от языка: кэшируем только в браузере и с учётом cookie
+  return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
 }

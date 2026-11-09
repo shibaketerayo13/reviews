@@ -6,9 +6,18 @@ import { searchMovieTv, type TmdbSearchItem } from "@/lib/tmdb";
 import { TmdbResults } from "@/components/TmdbResults";
 import { MEDIA_LABEL, yearOf, type Title } from "@/lib/types";
 import { botToken, botUsername, tg } from "@/lib/telegram/api";
-import { connectTelegram, deleteTitle, importImdb, importList, refreshTitle } from "./actions";
+import {
+  connectTelegram,
+  deleteTitle,
+  importImdb,
+  importList,
+  loadTranslations,
+  refreshTitle,
+} from "./actions";
 
 export const metadata = { title: "Админка · reviews" };
+// Загрузка переводов для всего каталога идёт пачками и может занять до минуты
+export const maxDuration = 60;
 
 export default async function AdminPage({
   searchParams,
@@ -86,6 +95,18 @@ export default async function AdminPage({
             )}
           </>
         )}
+      </section>
+
+      <section className="panel">
+        <h2>Переводы названий</h2>
+        <p className="muted small-text">
+          Названия и описания на беларуском, польском и английском для переключателя языка.
+          Новые фильмы получают переводы сами, а для уже добавленных нажмите кнопку — за раз
+          обрабатывается до 250 тайтлов.
+        </p>
+        <form action={loadTranslations} className="inline-form">
+          <button type="submit">Загрузить переводы</button>
+        </form>
       </section>
 
       <section className="panel">

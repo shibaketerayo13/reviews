@@ -529,3 +529,44 @@ alter table public.titles
 create index if not exists titles_added_by_idx
   on public.titles (added_by, created_at desc)
   where added_by is not null;
+
+-- Миграция 010: переводы названий и описаний.
+
+alter table public.titles
+  add column if not exists translations jsonb not null default '{}'::jsonb;
+
+-- Текст для поиска: русское и оригинальное название плюс переводы названия
+alter table public.titles
+  add column if not exists search_text text generated always as (
+    lower(
+      coalesce(title, '') || ' ' ||
+      coalesce(original_title, '') || ' ' ||
+      coalesce(translations -> 'en' ->> 'title', '') || ' ' ||
+      coalesce(translations -> 'pl' ->> 'title', '') || ' ' ||
+      coalesce(translations -> 'be' ->> 'title', '')
+    )
+  ) stored;
+
+-- Каталог отдаёт и переводы
+drop view if exists public.catalog;
+create view public.catalog
+with (security_invoker = true) as
+select
+  t.id,
+  t.tmdb_id,
+  t.media_type,
+  t.title,
+  t.original_title,
+  t.overview,
+  t.poster_path,
+  t.backdrop_path,
+  t.release_date,
+  t.tmdb_rating,
+  t.created_at,
+  t.translations,
+  s.avg_score,
+  coalesce(s.ratings_count, 0) as ratings_count
+from public.titles t
+left join public.title_stats s on s.title_id = t.id;
+
+grant select on public.catalog to anon, authenticated;

@@ -10,13 +10,10 @@ import { Credits } from "@/components/Credits";
 import { EntryForm } from "@/components/EntryForm";
 import { Related } from "@/components/Related";
 import { TitleHero, metaLine } from "@/components/TitleHero";
-import {
-  MEDIA_LABEL,
-  STATUS_LABEL,
-  yearOf,
-  type Title,
-  type WatchStatus,
-} from "@/lib/types";
+import { yearOf, type Title, type WatchStatus } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { TMDB_LANGUAGE, formatDate, plural } from "@/lib/i18n/config";
+import { hasTranslation, localOverview, localTitle } from "@/lib/i18n/content";
 
 type ReviewRow = {
   user_id: string;
@@ -45,6 +42,7 @@ export default async function TitlePage({
   if (!Number.isInteger(id) || id <= 0) notFound();
 
   const supabase = await createClient();
+  const { locale, t } = await getI18n();
   const { data: title } = await supabase
     .from("titles")
     .select("*")
@@ -65,7 +63,7 @@ export default async function TitlePage({
       .order("updated_at", { ascending: false })
       .limit(100),
     // Актёры и похожие подгружаются из TMDB; если TMDB недоступен, страница всё равно работает
-    getFullDetails(title.media_type, title.tmdb_id).catch(() => null),
+    getFullDetails(title.media_type, title.tmdb_id, TMDB_LANGUAGE[locale]).catch(() => null),
   ]);
 
   const entries = (reviewsData ?? []) as unknown as ReviewRow[];
@@ -73,8 +71,17 @@ export default async function TitlePage({
   const reviews = entries.filter((r) => r.score !== null || r.review);
   const stat = stats.get(id);
 
+  // Название и описание на выбранном языке: сохранённый перевод, иначе — свежие данные TMDB
+  const live = details?.media;
+  const liveName = live?.title ?? live?.name;
+  const useLive = !hasTranslation(title, locale) && locale !== "be" && Boolean(liveName);
+  const name = useLive ? liveName! : localTitle(title, locale);
+  const overview = useLive && live?.overview ? live.overview : localOverview(title, locale);
+
   const meta = metaLine({
-    typeLabel: MEDIA_LABEL[title.media_type],
+    locale,
+    t,
+    typeLabel: t.media[title.media_type],
     year: yearOf(title.release_date),
     runtime: details?.runtime ?? null,
     seasons: details?.seasons ?? null,
@@ -89,19 +96,19 @@ export default async function TitlePage({
       <TitleHero
         posterPath={title.poster_path}
         backdropPath={title.backdrop_path}
-        name={title.title}
+        name={name}
         original={title.original_title}
         meta={meta}
-        overview={title.overview}
+        overview={overview}
       >
         <dl className="scores reveal" style={{ "--i": 4 } as React.CSSProperties}>
           <div>
-            <dt>Оценка сайта</dt>
+            <dt>{t.title.siteScore}</dt>
             <dd>
               {stat ? (
                 <>
                   <span className="score-big">{stat.avg.toFixed(1)}</span>
-                  <span className="score-sub">{stat.count} оц.</span>
+                  <span className="score-sub">{plural(locale, stat.count, t.plural.ratingsShort)}</span>
                 </>
               ) : (
                 <span className="score-none">—</span>
@@ -118,7 +125,7 @@ export default async function TitlePage({
           )}
           {mine?.score != null && (
             <div>
-              <dt>Ваша</dt>
+              <dt>{t.title.yours}</dt>
               <dd>
                 <span className="score-big accent">{mine.score}</span>
               </dd>
@@ -131,7 +138,7 @@ export default async function TitlePage({
         <div className="title-main">
           {details && (
             <Credits
-              makersLabel={details.makersLabel}
+              makersRole={details.makersRole}
               makers={details.makers}
               cast={details.cast}
             />
@@ -139,15 +146,15 @@ export default async function TitlePage({
 
           <section>
             <div className="section-head">
-              <h2>Отзывы</h2>
+              <h2>{t.title.reviews}</h2>
               <span className="section-count">{reviews.length}</span>
             </div>
             {reviews.length === 0 ? (
-              <p className="muted">Пока никто не оценил. Будьте первым.</p>
+              <p className="muted">{t.title.noReviews}</p>
             ) : (
               <ul className="review-list">
                 {reviews.map((r, i) => {
-                  const name = r.profiles?.display_name ?? "Пользователь";
+                  const author = r.profiles?.display_name ?? t.common.user;
                   const handle = r.profiles?.username;
                   return (
                     <li
@@ -157,30 +164,26 @@ export default async function TitlePage({
                     >
                       {handle ? (
                         <Link href={`/u/${handle}`} className="review-avatar" tabIndex={-1}>
-                          <Avatar url={r.profiles?.avatar_url} name={name} size={40} />
+                          <Avatar url={r.profiles?.avatar_url} name={author} size={40} />
                         </Link>
                       ) : (
-                        <Avatar url={r.profiles?.avatar_url} name={name} size={40} />
+                        <Avatar url={r.profiles?.avatar_url} name={author} size={40} />
                       )}
                       <div className="review-body">
                         <p className="review-head">
                           {handle ? (
                             <Link href={`/u/${handle}`} className="review-author">
-                              <strong>{name}</strong>
+                              <strong>{author}</strong>
                             </Link>
                           ) : (
-                            <strong>{name}</strong>
+                            <strong>{author}</strong>
                           )}
                           {r.score !== null && <span className="review-score">★ {r.score}</span>}
                           <span className={`badge badge-${r.status}`}>
-                            {STATUS_LABEL[r.status]}
+                            {t.status[r.status]}
                           </span>
                           <time className="review-date" dateTime={r.updated_at}>
-                            {new Date(r.updated_at).toLocaleDateString("ru-RU", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
+                            {formatDate(locale, r.updated_at)}
                           </time>
                         </p>
                         {r.review && <p className="review-text">{r.review}</p>}

@@ -1,31 +1,14 @@
 // Параметры каталога: общие для сервера (запрос) и клиента (панель фильтров).
+// Подписи — в словаре (t.catalog), здесь только допустимые значения.
 
-export const SORTS = {
-  tmdb: "Рейтинг TMDB",
-  site: "Оценки сайта",
-  year_desc: "Сначала новые",
-  year_asc: "Сначала старые",
-  added: "Недавно добавленные",
-  title: "По алфавиту",
-} as const;
-export type Sort = keyof typeof SORTS;
+export const SORTS = ["tmdb", "site", "year_desc", "year_asc", "added", "title"] as const;
+export type Sort = (typeof SORTS)[number];
 
-export const TYPES = { all: "Всё", movie: "Фильмы", tv: "Сериалы" } as const;
-export type TypeFilter = keyof typeof TYPES;
+export const TYPES = ["all", "movie", "tv"] as const;
+export type TypeFilter = (typeof TYPES)[number];
 
-export const DECADES = {
-  all: "Любые годы",
-  "2020": "2020-е",
-  "2010": "2010-е",
-  "2000": "2000-е",
-  "1990": "1990-е",
-  "1980": "1980-е",
-  "1970": "1970-е",
-  "1960": "1960-е",
-  "1950": "1950-е",
-  old: "До 1950",
-} as const;
-export type Decade = keyof typeof DECADES;
+export const DECADES = ["all", "2020", "2010", "2000", "1990", "1980", "1970", "1960", "1950", "old"] as const;
+export type Decade = (typeof DECADES)[number];
 
 export type CatalogParams = {
   type: TypeFilter;
@@ -41,8 +24,10 @@ export const DEFAULTS: CatalogParams = {
   page: 1,
 };
 
-function pick<T extends string>(value: unknown, allowed: Record<T, string>, fallback: T): T {
-  return typeof value === "string" && value in allowed ? (value as T) : fallback;
+function pick<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
 }
 
 export function parseCatalogParams(sp: Record<string, string | undefined>): CatalogParams {
@@ -53,6 +38,16 @@ export function parseCatalogParams(sp: Record<string, string | undefined>): Cata
     sort: pick(sp.sort, SORTS, DEFAULTS.sort),
     page: Number.isInteger(page) && page > 0 ? Math.min(page, 1000) : 1,
   };
+}
+
+/** Подпись десятилетия: «2010-е», «До 1950», «Любые годы». */
+export function decadeLabel(
+  d: Decade,
+  labels: { anyYears: string; decade: string; before1950: string },
+): string {
+  if (d === "all") return labels.anyYears;
+  if (d === "old") return labels.before1950;
+  return labels.decade.replace("{d}", d);
 }
 
 /** Ссылка на каталог: параметры по умолчанию не попадают в адрес. */

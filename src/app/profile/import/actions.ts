@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile, getUser } from "@/lib/auth";
 import { catalogIdMap } from "@/lib/catalog";
 import { chunk, mapLimited } from "@/lib/async";
-import { getDetails, isMediaType, searchMovieTv, toTitleRow } from "@/lib/tmdb";
+import { fetchTitleRow, isMediaType, searchMovieTv } from "@/lib/tmdb";
+import { getI18n } from "@/lib/i18n/server";
+import { fmt, TMDB_LANGUAGE } from "@/lib/i18n/config";
 import {
   MAX_LINES,
   type Candidate,
@@ -21,14 +23,15 @@ function isImportStatus(v: unknown): v is "watched" | "planned" | "dropped" {
 
 /** До 4 вариантов из TMDB: сначала с тем же годом, потом с соседним. */
 async function findCandidates(title: string, year: number | null): Promise<Candidate[]> {
-  const found = await searchMovieTv(title).catch(() => []);
+  const { locale, t } = await getI18n();
+  const found = await searchMovieTv(title, TMDB_LANGUAGE[locale]).catch(() => []);
   const list: (Candidate & { rank: number })[] = found.map((m, i) => {
     const y = (m.release_date || m.first_air_date || "").slice(0, 4);
     const diff = year && y ? Math.abs(Number(y) - year) : 5;
     return {
       tmdb_id: m.id,
       media_type: m.media_type,
-      title: m.title ?? m.name ?? "Без названия",
+      title: m.title ?? m.name ?? t.common.untitled,
       original: m.original_title ?? m.original_name ?? null,
       year: y,
       poster_path: m.poster_path,
@@ -73,7 +76,8 @@ export async function searchAgain(title: string, year: number | null): Promise<C
  */
 export async function commitImport(items: ImportItem[]): Promise<ImportResult> {
   const user = await getUser();
-  if (!user) return { ok: false, error: "Нужно войти" };
+  const { t } = await getI18n();
+  if (!user) return { ok: false, error: t.errors.needLogin };
   const profile = await getProfile();
 
   // Проверяем и убираем повторы
@@ -87,7 +91,7 @@ export async function commitImport(items: ImportItem[]): Promise<ImportResult> {
     clean.set(`${it.media_type}:${id}`, { tmdb_id: id, media_type: it.media_type, score, status });
   }
   const list = [...clean.values()];
-  if (list.length === 0) return { ok: false, error: "Нечего импортировать" };
+  if (list.length === 0) return { ok: false, error: t.import.nothing };
 
   const asRefs = list.map((i) => ({ id: i.tmdb_id, media_type: i.media_type }));
   const lookup = async () => {
@@ -106,18 +110,16 @@ export async function commitImport(items: ImportItem[]): Promise<ImportResult> {
   if (missing.length && profile?.is_admin) {
     const rows = (
       await mapLimited(missing, 6, (i) =>
-        getDetails(i.media_type, i.tmdb_id)
-          .then((m) => toTitleRow(i.media_type, m))
-          .catch(() => null),
+        fetchTitleRow(i.media_type, i.tmdb_id).catch(() => null),
       )
-    ).filter((r): r is ReturnType<typeof toTitleRow> => r !== null);
+    ).filter((r): r is Awaited<ReturnType<typeof fetchTitleRow>> => r !== null);
 
     for (const part of chunk(rows, 200)) {
       const { data, error } = await supabase
         .from("titles")
         .upsert(part, { onConflict: "media_type,tmdb_id", ignoreDuplicates: true })
         .select("id");
-      if (error) return { ok: false, error: `Ошибка каталога: ${error.message}` };
+      if (error) return { ok: false, error: fmt(t.import.catalogError, { error: error.message }) };
       addedToCatalog += data?.length ?? 0;
     }
     ids = await lookup();
@@ -142,7 +144,7 @@ export async function commitImport(items: ImportItem[]): Promise<ImportResult> {
     const { error } = await supabase
       .from("ratings")
       .upsert(part, { onConflict: "user_id,title_id" });
-    if (error) return { ok: false, error: `Ошибка сохранения оценок: ${error.message}` };
+    if (error) return { ok: false, error: fmt(t.import.ratingsError, { error: error.message }) };
     imported += part.length;
   }
 

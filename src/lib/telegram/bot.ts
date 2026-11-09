@@ -6,6 +6,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { toIlikePattern } from "@/lib/search";
 import {
   getDetails,
+  getTranslations,
   IMAGE_BASE_URL,
   searchMovieTv,
   toTitleRow,
@@ -399,7 +400,8 @@ async function addFromTmdb(user: Linked, type: MediaType, tmdbId: number): Promi
   if (!media) throw new UserError("Не удалось получить данные из TMDB. Попробуйте чуть позже.");
   if ((media as { adult?: boolean }).adult) throw new UserError("Этот фильм нельзя добавить.");
 
-  const row = { ...toTitleRow(type, media), added_by: user.userId };
+  const translations = await getTranslations(type, tmdbId).catch(() => undefined);
+  const row = { ...toTitleRow(type, media, translations), added_by: user.userId };
   const { data, error } = await db
     .from("titles")
     .upsert(row, { onConflict: "media_type,tmdb_id", ignoreDuplicates: true })

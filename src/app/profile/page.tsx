@@ -11,10 +11,15 @@ import {
   toProfileEntry,
   type Tab,
 } from "@/lib/profile-data";
-import { STATUS_LABEL, isWatchStatus, type WatchStatus } from "@/lib/types";
+import { isWatchStatus, type WatchStatus } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { fmt } from "@/lib/i18n/config";
 import { updateDisplayName, updateUsername } from "./actions";
 
-export const metadata = { title: "Профиль · reviews" };
+export async function generateMetadata() {
+  const { t } = await getI18n();
+  return { title: `${t.meta.profile} · reviews` };
+}
 
 export default async function ProfilePage({
   searchParams,
@@ -23,13 +28,14 @@ export default async function ProfilePage({
 }) {
   const user = await requireUser();
   const profile = await getProfile();
+  const { locale, t } = await getI18n();
   const { tab: rawTab, error, message } = await searchParams;
   const tab: Tab = isWatchStatus(rawTab) ? rawTab : "all";
   const name = profile?.display_name ?? user.email ?? "";
 
   const { all, counts, avg, favorites } = await loadProfileData(user.id);
   const shown = tab === "all" ? all : all.filter((e) => e.status === tab);
-  const since = formatSince(user.created_at);
+  const since = formatSince(locale, user.created_at);
 
   return (
     <>
@@ -41,30 +47,30 @@ export default async function ProfilePage({
 
         <div className="profile-main">
           <p className="eyebrow">
-            Профиль
+            {t.profile.eyebrow}
             {profile?.is_admin && (
               <>
                 {" · "}
-                <Link href="/admin">администратор</Link>
+                <Link href="/admin">{t.profile.admin}</Link>
               </>
             )}
           </p>
           <h1 className="profile-name">{name}</h1>
-          {since && <p className="profile-since">На сайте с {since}</p>}
+          {since && <p className="profile-since">{fmt(t.profile.since, { date: since })}</p>}
           {profile?.username && <ShareProfile username={profile.username} />}
 
           <details className="rename">
-            <summary>Настройки профиля</summary>
+            <summary>{t.profile.settings}</summary>
             <form action={updateDisplayName} className="inline-form">
               <input
                 name="display_name"
                 defaultValue={profile?.display_name ?? ""}
                 maxLength={40}
-                aria-label="Имя на сайте"
-                placeholder="Имя на сайте"
+                aria-label={t.profile.displayName}
+                placeholder={t.profile.displayName}
               />
               <button type="submit" className="button button-small">
-                Сохранить имя
+                {t.profile.saveName}
               </button>
             </form>
             <form action={updateUsername} className="inline-form">
@@ -75,17 +81,17 @@ export default async function ProfilePage({
                 minLength={3}
                 maxLength={30}
                 pattern="[a-zA-Z0-9_]{3,30}"
-                title="3–30 символов: латиница, цифры и «_»"
-                aria-label="Короткое имя для ссылки"
-                placeholder="короткое_имя"
+                title={t.profile.usernameHint}
+                aria-label={t.profile.usernameAria}
+                placeholder={t.profile.usernamePlaceholder}
               />
               <button type="submit" className="button button-small">
-                Сохранить ссылку
+                {t.profile.saveLink}
               </button>
             </form>
           </details>
           <Link href="/profile/import" className="profile-import-link">
-            Импорт оценок списком →
+            {t.profile.importLink}
           </Link>
           <TelegramLink userId={user.id} />
         </div>
@@ -95,7 +101,7 @@ export default async function ProfilePage({
 
       <FavoritesRow
         favorites={favorites}
-        emptyHint="Отметьте фильм сердечком на его странице или в окне редактирования, и он появится здесь."
+        emptyHint={t.profile.favEmpty}
       />
 
       <ProfileEntries
@@ -104,16 +110,13 @@ export default async function ProfilePage({
           <div className="empty reveal">
             <p className="empty-title">
               {tab === "all"
-                ? "Здесь пока пусто"
-                : `В разделе «${STATUS_LABEL[tab as WatchStatus]}» ничего нет`}
+                ? t.profile.emptyAll
+                : fmt(t.profile.emptyTab, { tab: t.status[tab as WatchStatus] })}
             </p>
-            <p className="muted">
-              Найдите фильм через поиск наверху, откройте его и нажмите «Добавить
-              в профиль».
-            </p>
+            <p className="muted">{t.profile.emptyHint}</p>
           </div>
         }
-        entries={shown.map(toProfileEntry)}
+        entries={shown.map((e) => toProfileEntry(e, locale))}
       />
     </>
   );

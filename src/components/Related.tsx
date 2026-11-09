@@ -1,10 +1,12 @@
 import { catalogIdMap, titleHref } from "@/lib/catalog";
 import type { TmdbSearchItem } from "@/lib/tmdb";
 import { TmdbCard } from "./TmdbCard";
+import { getI18n } from "@/lib/i18n/server";
 
 /** «Похожие»: сначала то, что уже есть в каталоге сайта. */
 export async function Related({ items }: { items: TmdbSearchItem[] }) {
   if (items.length === 0) return null;
+  const { t } = await getI18n();
   const ids = await catalogIdMap(items);
   const sorted = [...items].sort(
     (a, b) =>
@@ -14,7 +16,7 @@ export async function Related({ items }: { items: TmdbSearchItem[] }) {
   return (
     <section className="related">
       <div className="section-head">
-        <h2>Похожие</h2>
+        <h2>{t.title.related}</h2>
       </div>
       <div className="rail">
         {sorted.map((item, i) => (

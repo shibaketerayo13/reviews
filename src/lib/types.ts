@@ -1,3 +1,5 @@
+import type { TitleTranslations } from "@/lib/i18n/content";
+
 export type Title = {
   id: number;
   tmdb_id: number;
@@ -10,6 +12,8 @@ export type Title = {
   release_date: string | null;
   tmdb_rating: number | null;
   created_at: string;
+  /** Переводы из TMDB (миграция 010). У старых записей может отсутствовать. */
+  translations?: TitleTranslations | null;
 };
 
 export type Profile = {
@@ -22,6 +26,7 @@ export type Profile = {
 
 export type TitleStat = { avg: number; count: number };
 
+// Русские подписи — для Telegram-бота и админки. На сайте подписи берутся из словаря (lib/i18n).
 export const MEDIA_LABEL: Record<Title["media_type"], string> = {
   movie: "Фильм",
   tv: "Сериал",

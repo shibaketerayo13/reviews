@@ -6,7 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { removeEntry, updateEntry } from "@/app/profile/actions";
 import { FavoriteButton } from "./FavoriteButton";
-import { MEDIA_LABEL, STATUS_LABEL, WATCH_STATUSES, type WatchStatus } from "@/lib/types";
+import { WATCH_STATUSES, type WatchStatus } from "@/lib/types";
+import { fmt } from "@/lib/i18n/config";
+import { useI18n } from "./I18nProvider";
 
 const POSTER = "/img/t"; // постеры через прокси сайта (lib/images.ts)
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -45,6 +47,7 @@ export function ProfileEntries({
   /** Чужой профиль: клик ведёт на страницу фильма, без окна редактирования. */
   readOnly?: boolean;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState<ProfileEntry | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -53,8 +56,8 @@ export function ProfileEntries({
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(timer);
   }, [toast]);
 
   useEffect(() => {
@@ -91,8 +94,8 @@ export function ProfileEntries({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Escape" && closeSearch()}
-              placeholder="Найти в профиле"
-              aria-label="Поиск по профилю"
+              placeholder={t.profile.searchPlaceholder}
+              aria-label={t.profile.searchAria}
             />
           )}
           {searchOpen && query && (
@@ -102,9 +105,9 @@ export function ProfileEntries({
             type="button"
             className="icon-button"
             onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
-            aria-label={searchOpen ? "Закрыть поиск" : "Поиск по профилю"}
+            aria-label={searchOpen ? t.profile.closeSearch : t.profile.searchAria}
             aria-expanded={searchOpen}
-            title={searchOpen ? "Закрыть поиск" : "Поиск по профилю"}
+            title={searchOpen ? t.profile.closeSearch : t.profile.searchAria}
           >
             {searchOpen ? (
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -124,10 +127,8 @@ export function ProfileEntries({
         empty
       ) : visible.length === 0 ? (
         <div className="empty">
-          <p className="empty-title">Ничего не нашлось</p>
-          <p className="muted">
-            В этом разделе нет «{query.trim()}». Попробуйте вкладку «Все».
-          </p>
+          <p className="empty-title">{t.profile.notFoundTitle}</p>
+          <p className="muted">{fmt(t.profile.notFoundHint, { q: query.trim() })}</p>
         </div>
       ) : (
       <ul className="entries">
@@ -141,14 +142,14 @@ export function ProfileEntries({
               <Link
                 href={`/title/${e.titleId}`}
                 className="entry-hit"
-                aria-label={`Открыть: ${e.title}`}
+                aria-label={fmt(t.entry.openAria, { title: e.title })}
               />
             ) : (
               <button
                 type="button"
                 className="entry-hit"
                 onClick={() => setOpen(e)}
-                aria-label={`Изменить: ${e.title}`}
+                aria-label={fmt(t.entry.editAria, { title: e.title })}
               />
             )}
             <div className="entry-poster">
@@ -163,7 +164,7 @@ export function ProfileEntries({
                 <span className="entry-title">
                   {e.title}
                   {e.isFavorite && (
-                    <span className="entry-fav" title="В любимых" aria-label="В любимых">
+                    <span className="entry-fav" title={t.entry.favOn} aria-label={t.entry.favOn}>
                       {" "}♥
                     </span>
                   )}
@@ -171,16 +172,16 @@ export function ProfileEntries({
                 {e.score !== null && <span className="entry-score">{e.score}</span>}
               </div>
               <p className="entry-meta">
-                <span className={`badge badge-${e.status}`}>{STATUS_LABEL[e.status]}</span>
+                <span className={`badge badge-${e.status}`}>{t.status[e.status]}</span>
                 <span className="muted">
-                  {MEDIA_LABEL[e.mediaType]}
+                  {t.media[e.mediaType]}
                   {e.year && ` · ${e.year}`}
                 </span>
               </p>
               {e.review && <p className="entry-review">{e.review}</p>}
             </div>
             <span className="entry-edit" aria-hidden="true">
-              {readOnly ? "Открыть →" : "Изменить"}
+              {readOnly ? t.entry.open : t.entry.edit}
             </span>
           </li>
         ))}
@@ -218,6 +219,7 @@ function EntryDialog({
   onDone: (message: string) => void;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   const [status, setStatus] = useState<WatchStatus>(entry.status);
   const [score, setScore] = useState<number | null>(entry.score);
@@ -259,8 +261,8 @@ function EntryDialog({
     startTransition(() => router.refresh());
     onDone(
       res.status !== entry.status
-        ? `«${entry.title}» → ${STATUS_LABEL[res.status]}`
-        : `«${entry.title}» сохранён`,
+        ? fmt(t.entry.toastMoved, { title: entry.title, status: t.status[res.status] })
+        : fmt(t.entry.toastSaved, { title: entry.title }),
     );
   }
 
@@ -268,9 +270,9 @@ function EntryDialog({
     setBusy(true);
     const res = await removeEntry(entry.titleId);
     setBusy(false);
-    if (!res.ok) return setError(res.error ?? "Не удалось удалить");
+    if (!res.ok) return setError(res.error ?? t.errors.deleteFailed);
     startTransition(() => router.refresh());
-    onDone(`«${entry.title}» убран из профиля`);
+    onDone(fmt(t.entry.toastRemoved, { title: entry.title }));
   }
 
   const backdrop = entry.posterPath ? `${POSTER}/w342${entry.posterPath}` : null;
@@ -304,12 +306,12 @@ function EntryDialog({
           </div>
           <div>
             <p className="eyebrow">
-              {MEDIA_LABEL[entry.mediaType]}
+              {t.media[entry.mediaType]}
               {entry.year && ` · ${entry.year}`}
             </p>
             <h2 id="entry-dialog-title">{entry.title}</h2>
             <Link href={`/title/${entry.titleId}`} className="modal-link">
-              Открыть страницу →
+              {t.common.openPage}
             </Link>
           </div>
           <div className="modal-tools">
@@ -321,7 +323,7 @@ function EntryDialog({
                 if (on && status === "planned") setStatus("watched");
               }}
             />
-          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label="Закрыть">
+          <button type="button" className="icon-button modal-close" onClick={onClose} aria-label={t.common.close}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
@@ -330,7 +332,7 @@ function EntryDialog({
         </header>
 
         <div className="modal-body">
-          <div className="segmented segmented-full" role="radiogroup" aria-label="Статус">
+          <div className="segmented segmented-full" role="radiogroup" aria-label={t.common.status}>
             {WATCH_STATUSES.map((s) => (
               <label key={s}>
                 <input
@@ -339,20 +341,18 @@ function EntryDialog({
                   checked={status === s}
                   onChange={() => pickStatus(s)}
                 />
-                <span>{STATUS_LABEL[s]}</span>
+                <span>{t.status[s]}</span>
               </label>
             ))}
           </div>
 
           <fieldset className="mini-scores" disabled={busy}>
             <legend>
-              Оценка
-              {status === "planned" && (
-                <span className="legend-hint"> · поставьте, и фильм перейдёт в «Просмотрено»</span>
-              )}
+              {t.common.score}
+              {status === "planned" && <span className="legend-hint">{t.entry.plannedHint}</span>}
             </legend>
             <div className="mini-score-row">
-              <label className="mini-score none" title="Без оценки">
+              <label className="mini-score none" title={t.common.noScore}>
                 <input
                   type="radio"
                   name="modal-score"
@@ -376,13 +376,13 @@ function EntryDialog({
           </fieldset>
 
           <label className="field">
-            <span>Комментарий</span>
+            <span>{t.common.comment}</span>
             <textarea
               value={review}
               onChange={(e) => setReview(e.target.value)}
               rows={3}
               maxLength={5000}
-              placeholder="Пара слов на память…"
+              placeholder={t.common.commentPlaceholder}
             />
           </label>
 
@@ -392,22 +392,22 @@ function EntryDialog({
         <footer className="modal-foot">
           {confirmDelete ? (
             <span className="confirm">
-              Убрать из профиля?{" "}
+              {t.entry.removeConfirm}{" "}
               <button type="button" className="link-button danger" onClick={remove} disabled={busy}>
-                Да
+                {t.common.yes}
               </button>{" "}
               <button type="button" className="link-button" onClick={() => setConfirmDelete(false)}>
-                Нет
+                {t.common.no}
               </button>
             </span>
           ) : (
             <button type="button" className="link-button danger" onClick={() => setConfirmDelete(true)}>
-              Убрать из профиля
+              {t.entry.removeFromProfile}
             </button>
           )}
           <div className="modal-actions">
             <button type="button" className="button button-ghost button-small" onClick={onClose}>
-              Отмена
+              {t.common.cancel}
             </button>
             <button
               type="button"
@@ -415,7 +415,7 @@ function EntryDialog({
               onClick={save}
               disabled={busy || !changed}
             >
-              {busy ? "Сохраняю…" : "Сохранить"}
+              {busy ? t.common.saving : t.common.save}
             </button>
           </div>
         </footer>

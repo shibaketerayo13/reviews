@@ -1,6 +1,8 @@
 // Клиент TMDB API v3. Работает только на сервере: токен не должен попасть в браузер.
 import { tmdbImg } from "@/lib/images";
+import type { TitleTranslations, TranslationLang } from "@/lib/i18n/content";
 const BASE_URL = "https://api.themoviedb.org/3";
+const DAY = 60 * 60 * 24;
 export const IMAGE_BASE_URL = "https://image.tmdb.org/t/p";
 
 export type MediaType = "movie" | "tv";
@@ -90,10 +92,11 @@ export const getDetails = (type: MediaType, id: number) =>
   tmdbFetch<TmdbMedia>(`/${type}/${id}`);
 
 /** Поиск по фильмам и сериалам (люди из выдачи убираются). */
-export async function searchMovieTv(query: string): Promise<TmdbSearchItem[]> {
+export async function searchMovieTv(query: string, language = "ru-RU"): Promise<TmdbSearchItem[]> {
   const data = await tmdbFetch<TmdbList>("/search/multi", {
     query,
     include_adult: "false",
+    language,
   });
   return data.results.filter((r): r is TmdbSearchItem =>
     isMediaType(r.media_type),
@@ -103,8 +106,8 @@ export async function searchMovieTv(query: string): Promise<TmdbSearchItem[]> {
 /** Картинка TMDB через прокси сайта (/img/t/…), см. lib/images.ts. */
 export const posterUrl = (path: string | null, size = "w500") => tmdbImg(path, size);
 
-/** Строка для таблицы titles в Supabase. */
-export function toTitleRow(type: MediaType, m: TmdbMedia) {
+/** Строка для таблицы titles в Supabase. translations — из getTranslations (если загружены). */
+export function toTitleRow(type: MediaType, m: TmdbMedia, translations?: TitleTranslations) {
   return {
     tmdb_id: m.id,
     media_type: type,
@@ -115,14 +118,65 @@ export function toTitleRow(type: MediaType, m: TmdbMedia) {
     backdrop_path: m.backdrop_path,
     release_date: m.release_date || m.first_air_date || null,
     tmdb_rating: m.vote_average ? Math.round(m.vote_average * 10) / 10 : null,
+    ...(translations ? { translations } : {}),
   };
+}
+
+/* =========================================================
+   Переводы названий и описаний (один запрос на тайтл)
+   ========================================================= */
+
+type RawTranslations = {
+  translations: {
+    iso_639_1: string;
+    iso_3166_1: string;
+    data: { title?: string; name?: string; overview?: string };
+  }[];
+};
+
+/** Предпочтительная страна для каждого языка (у английского их много). */
+const PREFERRED_REGION: Record<TranslationLang, string[]> = {
+  en: ["US", "GB"],
+  pl: ["PL"],
+  be: ["BY"],
+};
+
+/** Названия и описания на беларуском, польском и английском из TMDB (кэш на неделю). */
+export async function getTranslations(type: MediaType, id: number): Promise<TitleTranslations> {
+  const data = await tmdbFetch<RawTranslations>(`/${type}/${id}/translations`, {}, DAY * 7);
+  const out: TitleTranslations = {};
+  for (const lang of Object.keys(PREFERRED_REGION) as TranslationLang[]) {
+    const variants = data.translations.filter((tr) => tr.iso_639_1 === lang);
+    variants.sort(
+      (a, b) =>
+        rank(PREFERRED_REGION[lang], a.iso_3166_1) - rank(PREFERRED_REGION[lang], b.iso_3166_1),
+    );
+    const title = variants.map((v) => (v.data.title || v.data.name || "").trim()).find(Boolean);
+    const overview = variants.map((v) => (v.data.overview || "").trim()).find(Boolean);
+    if (title || overview) {
+      out[lang] = { ...(title ? { title } : {}), ...(overview ? { overview } : {}) };
+    }
+  }
+  return out;
+}
+
+function rank(preferred: string[], region: string): number {
+  const i = preferred.indexOf(region);
+  return i === -1 ? preferred.length : i;
+}
+
+/** Строка для каталога вместе с переводами: подробности на русском + переводы, параллельно. */
+export async function fetchTitleRow(type: MediaType, id: number) {
+  const [media, translations] = await Promise.all([
+    getDetails(type, id),
+    getTranslations(type, id).catch(() => undefined),
+  ]);
+  return toTitleRow(type, media, translations);
 }
 
 /* =========================================================
    Подробности тайтла: актёры, режиссёры/создатели, похожие
    ========================================================= */
-
-const DAY = 60 * 60 * 24;
 
 export type Person = {
   id: number;
@@ -166,7 +220,7 @@ export type FullDetails = {
   genres: string[];
   runtime: number | null; // минуты (у сериалов — серия)
   seasons: number | null;
-  makersLabel: string; // «Режиссёр» / «Создатели»
+  makersRole: "director" | "creator"; // подпись берётся из словаря
   makers: Person[];
   cast: Person[];
   related: TmdbSearchItem[];
@@ -181,12 +235,16 @@ function uniqueById<T extends { id: number }>(list: T[]): T[] {
   return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
 }
 
-/** Всё для страницы тайтла одним запросом к TMDB (кэш на сутки). */
-export async function getFullDetails(type: MediaType, id: number): Promise<FullDetails> {
+/** Всё для страницы тайтла одним запросом к TMDB (кэш на сутки). language — язык TMDB. */
+export async function getFullDetails(
+  type: MediaType,
+  id: number,
+  language = "ru-RU",
+): Promise<FullDetails> {
   const credits = type === "movie" ? "credits" : "aggregate_credits";
   const d = await tmdbFetch<FullDetailsRaw>(
     `/${type}/${id}`,
-    { append_to_response: `${credits},recommendations,similar` },
+    { append_to_response: `${credits},recommendations,similar`, language },
     DAY,
   );
   const c = (type === "movie" ? d.credits : d.aggregate_credits) ?? { cast: [], crew: [] };
@@ -207,15 +265,11 @@ export async function getFullDetails(type: MediaType, id: number): Promise<FullD
     }));
 
   let makers: Person[];
-  let makersLabel: string;
   if (type === "movie") {
     const directors = uniqueById(c.crew.filter((p) => hasJob(p, "Director")));
-    makersLabel = directors.length > 1 ? "Режиссёры" : "Режиссёр";
     makers = directors.map((p) => ({ ...p, role: null }));
   } else {
-    const creators = d.created_by ?? [];
-    makersLabel = creators.length > 1 ? "Создатели" : "Создатель";
-    makers = creators.map((p) => ({ ...p, role: null }));
+    makers = (d.created_by ?? []).map((p) => ({ ...p, role: null }));
   }
 
   const pickRelated = (list?: TmdbList) =>
@@ -232,7 +286,7 @@ export async function getFullDetails(type: MediaType, id: number): Promise<FullD
     genres: (d.genres ?? []).map((g) => g.name),
     runtime: d.runtime || d.episode_run_time?.[0] || null,
     seasons: d.number_of_seasons ?? null,
-    makersLabel,
+    makersRole: type === "movie" ? "director" : "creator",
     makers: makers.slice(0, 4),
     cast,
     related,
@@ -260,6 +314,7 @@ type PersonRaw = {
   place_of_birth: string | null;
   profile_path: string | null;
   known_for_department: string;
+  gender?: number; // 1 — женщина, 2 — мужчина
   combined_credits?: { cast: RawPersonCredit[]; crew: RawPersonCredit[] };
 };
 
@@ -277,33 +332,31 @@ export type PersonDetails = {
   deathday: string | null;
   place_of_birth: string | null;
   profile_path: string | null;
-  department: string;
+  department: string; // код TMDB: Acting, Directing… — подпись из словаря
+  female: boolean;
   credits: PersonCredit[];
 };
 
-const DEPARTMENT: Record<string, string> = {
-  Acting: "Актёр",
-  Directing: "Режиссёр",
-  Writing: "Сценарист",
-  Production: "Продюсер",
-  Camera: "Оператор",
-  Sound: "Композитор",
-  Editing: "Монтажёр",
-};
+/** Подписи ролей, которые getPerson подставляет в фильмографию. */
+export type PersonRoleLabels = { director: string; writer: string };
 
 // Ток-шоу, новости и реалити засоряют фильмографию
 const NOISE_GENRES = new Set([10767, 10763, 10764]);
 
-export async function getPerson(id: number): Promise<PersonDetails> {
+export async function getPerson(
+  id: number,
+  language = "ru-RU",
+  labels: PersonRoleLabels = { director: "Режиссёр", writer: "Сценарий" },
+): Promise<PersonDetails> {
   const p = await tmdbFetch<PersonRaw>(
     `/person/${id}`,
-    { append_to_response: "combined_credits" },
+    { append_to_response: "combined_credits", language },
     DAY,
   );
 
   let biography = p.biography?.trim() ?? "";
-  if (!biography) {
-    // Русской биографии часто нет: берём английскую
+  if (!biography && language !== "en-US") {
+    // Биографии на нужном языке часто нет: берём английскую
     const en = await tmdbFetch<PersonRaw>(`/person/${id}`, { language: "en-US" }, DAY).catch(
       () => null,
     );
@@ -325,8 +378,8 @@ export async function getPerson(id: number): Promise<PersonDetails> {
   };
   for (const m of cc.cast) push(m, m.character || "");
   for (const m of cc.crew) {
-    if (m.job === "Director") push(m, "Режиссёр");
-    else if (m.job === "Screenplay" || m.job === "Writer") push(m, "Сценарий");
+    if (m.job === "Director") push(m, labels.director);
+    else if (m.job === "Screenplay" || m.job === "Writer") push(m, labels.writer);
   }
 
   // Один фильм может встречаться несколько раз (актёр и режиссёр): склеиваем роли
@@ -348,7 +401,8 @@ export async function getPerson(id: number): Promise<PersonDetails> {
     deathday: p.deathday,
     place_of_birth: p.place_of_birth,
     profile_path: p.profile_path,
-    department: DEPARTMENT[p.known_for_department] ?? p.known_for_department ?? "",
+    department: p.known_for_department ?? "",
+    female: p.gender === 1,
     credits: [...merged.values()],
   };
 }

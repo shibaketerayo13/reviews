@@ -2,16 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { TitleGrid } from "@/components/TitleCard";
 import { CatalogShell } from "@/components/CatalogShell";
 import { Pagination } from "@/components/Pagination";
-import {
-  DECADES,
-  SORTS,
-  TYPES,
-  catalogHref,
-  parseCatalogParams,
-} from "@/lib/catalog-params";
+import { catalogHref, decadeLabel, parseCatalogParams } from "@/lib/catalog-params";
 import type { Title, TitleStat } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata = { title: "Каталог · reviews" };
+export async function generateMetadata() {
+  const { t } = await getI18n();
+  return { title: `${t.meta.catalog} · reviews` };
+}
 export const dynamic = "force-dynamic";
 
 const PER_PAGE = 36;
@@ -25,6 +23,7 @@ export default async function CatalogPage({
 }) {
   const params = parseCatalogParams(await searchParams);
   const supabase = await createClient();
+  const { locale, t } = await getI18n();
 
   let query = supabase.from("catalog").select("*", { count: "exact" });
 
@@ -59,7 +58,11 @@ export default async function CatalogPage({
       query = query.order("created_at", { ascending: false });
       break;
     case "title":
-      query = query.order("title", { ascending: true });
+      // Для латиницы сортируем по оригинальному названию, для кириллицы — по русскому
+      query =
+        locale === "en" || locale === "pl"
+          ? query.order("original_title", { ascending: true, nullsFirst: false })
+          : query.order("title", { ascending: true });
       break;
   }
   // Стабильный порядок при равных значениях
@@ -79,9 +82,9 @@ export default async function CatalogPage({
   }
 
   const subtitle = [
-    params.type !== "all" ? TYPES[params.type] : null,
-    params.decade !== "all" ? DECADES[params.decade] : null,
-    SORTS[params.sort].toLowerCase(),
+    params.type !== "all" ? t.catalog.types[params.type] : null,
+    params.decade !== "all" ? decadeLabel(params.decade, t.catalog) : null,
+    t.catalog.sorts[params.sort].toLowerCase(),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -89,9 +92,11 @@ export default async function CatalogPage({
   return (
     <>
       <header className="page-head catalog-head reveal">
-        <p className="eyebrow">Каталог</p>
+        <p className="eyebrow">{t.catalog.eyebrow}</p>
         <h1>
-          Фильмы <em>и</em> сериалы
+          {t.catalog.titleStart}
+          <em>{t.catalog.titleAnd}</em>
+          {t.catalog.titleEnd}
         </h1>
         <p className="lead">{subtitle}</p>
       </header>
@@ -99,15 +104,14 @@ export default async function CatalogPage({
       <CatalogShell params={params} total={total}>
         {error ? (
           <div className="notice error">
-            Не удалось загрузить каталог. Выполните миграцию{" "}
-            <code>supabase/migrations/004_catalog.sql</code> в Supabase.
+            {t.catalog.loadError.replace("{file}", "supabase/migrations/010_translations.sql")}
             <br />
             <span className="small-text muted">{error.message}</span>
           </div>
         ) : rows.length === 0 ? (
           <div className="empty">
-            <p className="empty-title">Под эти условия ничего не нашлось</p>
-            <p className="muted">Попробуйте другие годы или тип.</p>
+            <p className="empty-title">{t.catalog.emptyTitle}</p>
+            <p className="muted">{t.catalog.emptyHint}</p>
           </div>
         ) : (
           <>

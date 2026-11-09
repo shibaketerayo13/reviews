@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getUser } from "@/lib/auth";
 import { cleanEntry, deleteEntry, upsertEntry } from "@/lib/entries";
-import { STATUS_LABEL } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { fmt } from "@/lib/i18n/config";
 
 function titleIdFrom(formData: FormData): number {
   const id = Number(formData.get("title_id"));
@@ -21,6 +22,7 @@ export async function saveRating(formData: FormData) {
   const titleId = titleIdFrom(formData);
   const user = await getUser();
   if (!user) redirect("/login");
+  const { t } = await getI18n();
 
   const requested = formData.get("status");
   const entry = cleanEntry({
@@ -29,10 +31,10 @@ export async function saveRating(formData: FormData) {
     score: formData.get("score"),
     review: formData.get("review"),
   });
-  if (typeof entry === "string") back(titleId, "error", entry);
+  if (typeof entry === "string") back(titleId, "error", t.errors[entry]);
 
   const error = await upsertEntry(user.id, entry);
-  if (error) back(titleId, "error", `Не удалось сохранить: ${error}`);
+  if (error) back(titleId, "error", fmt(t.errors.saveFailed, { error }));
 
   revalidatePath(`/title/${titleId}`);
   revalidatePath("/profile");
@@ -40,8 +42,8 @@ export async function saveRating(formData: FormData) {
     titleId,
     "message",
     requested === "planned" && entry.status === "watched"
-      ? `Оценка сохранена, фильм перенесён в «${STATUS_LABEL.watched}»`
-      : "Сохранено в профиле",
+      ? fmt(t.entry.movedToWatched, { status: t.status.watched })
+      : t.entry.saved,
   );
 }
 
@@ -52,8 +54,9 @@ export async function deleteRating(formData: FormData) {
   if (!user) redirect("/login");
 
   await deleteEntry(user.id, titleId);
+  const { t } = await getI18n();
 
   revalidatePath(`/title/${titleId}`);
   revalidatePath("/profile");
-  back(titleId, "message", "Убрано из профиля");
+  back(titleId, "message", t.entry.removed);
 }

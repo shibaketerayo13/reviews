@@ -6,7 +6,9 @@ import { getFullDetails, isMediaType } from "@/lib/tmdb";
 import { Credits } from "@/components/Credits";
 import { Related } from "@/components/Related";
 import { TitleHero, metaLine } from "@/components/TitleHero";
-import { MEDIA_LABEL, yearOf } from "@/lib/types";
+import { yearOf } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { TMDB_LANGUAGE } from "@/lib/i18n/config";
 import { addTitle } from "@/app/admin/actions";
 
 export default async function TmdbPreviewPage({
@@ -26,14 +28,17 @@ export default async function TmdbPreviewPage({
   const local = ids.get(`${type}:${tmdbId}`);
   if (local) redirect(`/title/${local}`);
 
-  const details = await getFullDetails(type, tmdbId).catch(() => null);
+  const { locale, t } = await getI18n();
+  const details = await getFullDetails(type, tmdbId, TMDB_LANGUAGE[locale]).catch(() => null);
   if (!details) notFound();
 
   const profile = await getProfile();
   const m = details.media;
-  const name = m.title ?? m.name ?? "Без названия";
+  const name = m.title ?? m.name ?? t.common.untitled;
   const meta = metaLine({
-    typeLabel: MEDIA_LABEL[type],
+    locale,
+    t,
+    typeLabel: t.media[type],
     year: yearOf(m.release_date ?? m.first_air_date),
     runtime: details.runtime,
     seasons: details.seasons,
@@ -66,16 +71,15 @@ export default async function TmdbPreviewPage({
 
       <div className="title-layout">
         <div className="title-main">
-          <Credits makersLabel={details.makersLabel} makers={details.makers} cast={details.cast} />
+          <Credits makersRole={details.makersRole} makers={details.makers} cast={details.cast} />
         </div>
         <aside className="title-aside reveal" style={{ "--i": 6 } as React.CSSProperties}>
           <section className="entry-card">
             <header className="entry-card-head">
-              <h2>Пока не в каталоге</h2>
+              <h2>{t.title.notInCatalogTitle}</h2>
             </header>
             <p className="muted small-text">
-              Этот {type === "movie" ? "фильм" : "сериал"} ещё не добавлен на
-              сайт, поэтому оценить его пока нельзя.
+              {type === "movie" ? t.title.notInCatalogMovie : t.title.notInCatalogTv}
             </p>
             {profile?.is_admin && (
               <form action={addTitle}>
@@ -83,7 +87,7 @@ export default async function TmdbPreviewPage({
                 <input type="hidden" name="media_type" value={type} />
                 <input type="hidden" name="return_to" value={`/tmdb/${type}/${tmdbId}`} />
                 <button type="submit" className="button button-block">
-                  Добавить в каталог
+                  {t.card.addToCatalog}
                 </button>
               </form>
             )}

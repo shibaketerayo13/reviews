@@ -8,6 +8,6 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     // Все пути, кроме статики, картинок и вебхука Telegram (там нет сессии пользователя)
-    "/((?!_next/static|_next/image|favicon.ico|api/telegram|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/telegram|api/keepalive|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4)$).*)",
   ],
 };

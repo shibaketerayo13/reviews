@@ -16,17 +16,20 @@ export type CleanEntry = {
   review: string | null;
 };
 
-/** Проверяет ввод. Возвращает текст ошибки или нормализованную запись. */
-export function cleanEntry(input: EntryInput): CleanEntry | string {
+/** Код ошибки ввода: текст берётся из словаря (t.errors[код]). */
+export type EntryError = "badTitle" | "pickStatus" | "badScore";
+
+/** Проверяет ввод. Возвращает код ошибки или нормализованную запись. */
+export function cleanEntry(input: EntryInput): CleanEntry | EntryError {
   const titleId = Number(input.titleId);
-  if (!Number.isInteger(titleId) || titleId <= 0) return "Неверный фильм";
-  if (!isWatchStatus(input.status)) return "Выберите статус";
+  if (!Number.isInteger(titleId) || titleId <= 0) return "badTitle";
+  if (!isWatchStatus(input.status)) return "pickStatus";
 
   let score: number | null = null;
   if (input.score !== null && input.score !== undefined && input.score !== "") {
     score = Number(input.score);
     if (!Number.isInteger(score) || score < 1 || score > 10) {
-      return "Оценка должна быть от 1 до 10";
+      return "badScore";
     }
   }
 

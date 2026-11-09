@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "./I18nProvider";
 
 /** Ссылка на публичный профиль и кнопка «Скопировать». */
 export function ShareProfile({ username }: { username: string }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const path = `/u/${username}`;
 
@@ -30,7 +32,7 @@ export function ShareProfile({ username }: { username: string }) {
         {path}
       </a>
       <button type="button" className="button button-small button-ghost" onClick={copy}>
-        {copied ? "Скопировано ✓" : "Поделиться"}
+        {copied ? t.profile.copied : t.profile.share}
       </button>
     </div>
   );

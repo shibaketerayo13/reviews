@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { safeNext } from "@/lib/redirect";
+import { getI18n } from "@/lib/i18n/server";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
@@ -24,10 +25,8 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(new URL(next, origin));
   }
 
+  const { t } = await getI18n();
   const url = new URL("/login", origin);
-  url.searchParams.set(
-    "error",
-    "Ссылка недействительна или устарела. Попробуйте войти ещё раз.",
-  );
+  url.searchParams.set("error", t.login.badLink);
   return NextResponse.redirect(url);
 }

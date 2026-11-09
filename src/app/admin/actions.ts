@@ -6,8 +6,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import {
+  fetchTitleRow,
   findByImdbId,
-  getDetails,
+  getTranslations,
   getList,
   isListSource,
   isMediaType,
@@ -41,9 +42,7 @@ export async function addTitle(formData: FormData) {
     done(returnTo, "error", "Неверные данные");
   }
 
-  const row = await getDetails(mediaType, tmdbId)
-    .then((m) => toTitleRow(mediaType, m))
-    .catch(() => null);
+  const row = await fetchTitleRow(mediaType, tmdbId).catch(() => null);
   if (!row) done(returnTo, "error", "Не удалось получить данные из TMDB");
 
   const supabase = await createClient();
@@ -154,15 +153,63 @@ export async function refreshTitle(formData: FormData) {
   if (!title || !isMediaType(title.media_type)) done("/admin", "error", "Не найдено");
 
   const mediaType = title.media_type as MediaType;
-  const row = await getDetails(mediaType, Number(title.tmdb_id))
-    .then((m) => toTitleRow(mediaType, m))
-    .catch(() => null);
+  const row = await fetchTitleRow(mediaType, Number(title.tmdb_id)).catch(() => null);
   if (!row) done("/admin", "error", "Не удалось получить данные из TMDB");
   const { error } = await supabase.from("titles").update(row).eq("id", id);
   if (error) done("/admin", "error", `Ошибка базы: ${error.message}`);
 
   revalidatePath(`/title/${id}`);
   done("/admin", "message", `Обновлено: «${row.title}»`);
+}
+
+/**
+ * Загрузить из TMDB названия и описания на беларуском, польском и английском
+ * для тайтлов, у которых переводов ещё нет. За один раз — до 250 штук.
+ */
+export async function loadTranslations() {
+  await assertAdmin();
+  const supabase = await createClient();
+  const { data, error, count } = await supabase
+    .from("titles")
+    .select("id, tmdb_id, media_type", { count: "exact" })
+    .eq("translations", "{}")
+    .order("id")
+    .limit(250);
+  if (error) {
+    done(
+      "/admin",
+      "error",
+      `Не удалось прочитать каталог: ${error.message}. Выполните миграцию supabase/migrations/010_translations.sql.`,
+    );
+  }
+  const rows: { id: number; tmdb_id: number; media_type: string }[] = data ?? [];
+  if (rows.length === 0) done("/admin", "message", "Переводы уже загружены для всего каталога");
+
+  let ok = 0;
+  let failed = 0;
+  await mapLimited(rows, 8, async (r) => {
+    if (!isMediaType(r.media_type)) return;
+    const tr = await getTranslations(r.media_type, Number(r.tmdb_id)).catch(() => null);
+    if (!tr) {
+      failed++;
+      return;
+    }
+    // Пустой результат помечаем, чтобы не запрашивать этот тайтл снова
+    const value = Object.keys(tr).length ? tr : { none: true };
+    const { error: upd } = await supabase.from("titles").update({ translations: value }).eq("id", r.id);
+    if (upd) failed++;
+    else ok++;
+  });
+
+  revalidatePath("/", "layout");
+  const left = Math.max(0, (count ?? rows.length) - ok);
+  done(
+    "/admin",
+    "message",
+    `Переводы загружены: ${ok}` +
+      (failed ? `, с ошибкой: ${failed}` : "") +
+      (left ? `. Осталось без переводов: ${left} — нажмите ещё раз.` : ". Готово для всего каталога."),
+  );
 }
 
 /** Удалить тайтл из каталога (вместе с оценками к нему). */
@@ -229,9 +276,7 @@ export async function replaceTitle(formData: FormData) {
     done(back, "error", "Неверные данные");
   }
 
-  const row = await getDetails(mediaType, tmdbId)
-    .then((m) => toTitleRow(mediaType, m))
-    .catch(() => null);
+  const row = await fetchTitleRow(mediaType, tmdbId).catch(() => null);
   if (!row) done(back, "error", "Не удалось получить данные из TMDB");
 
   const supabase = await createClient();
@@ -242,6 +287,11 @@ export async function replaceTitle(formData: FormData) {
   if (error) done(back, "error", `Не удалось заменить: ${error.message}`);
 
   const newId = Number(data);
+  // Функция в базе не знает о переводах: записываем их отдельно, чтобы не остались от старого фильма
+  await supabase
+    .from("titles")
+    .update({ translations: row.translations ?? {} })
+    .eq("id", newId);
   revalidatePath("/", "layout");
   done(`/title/${newId}`, "message", `Заменено на «${row.title}». Оценки сохранены.`);
 }

@@ -5,12 +5,15 @@ import { getProfile, getUser } from "@/lib/auth";
 import { getTitleStats } from "@/lib/catalog";
 import { TitleGrid } from "@/components/TitleCard";
 import { posterUrl } from "@/lib/tmdb";
-import { MEDIA_LABEL, yearOf, type Title } from "@/lib/types";
+import { yearOf, type Title } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { localTitle } from "@/lib/i18n/content";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const supabase = await createClient();
+  const { locale, t } = await getI18n();
 
   const { data: latest, error } = await supabase
     .from("titles")
@@ -21,11 +24,8 @@ export default async function HomePage() {
   if (error) {
     return (
       <section className="panel">
-        <h2>База ещё не настроена</h2>
-        <p>
-          Не найдена таблица каталога. Выполните файл{" "}
-          <code>supabase/schema.sql</code> в Supabase → SQL Editor.
-        </p>
+        <h2>{t.home.dbTitle}</h2>
+        <p>{t.home.dbText.replace("{file}", "supabase/schema.sql")}</p>
         <p className="muted small-text">{error.message}</p>
       </section>
     );
@@ -37,14 +37,14 @@ export default async function HomePage() {
     const profile = await getProfile();
     return (
       <section className="page-head reveal">
-        <p className="eyebrow">Каталог</p>
-        <h1>Пока пусто</h1>
+        <p className="eyebrow">{t.home.emptyEyebrow}</p>
+        <h1>{t.home.emptyTitle}</h1>
         {profile?.is_admin ? (
           <p className="lead">
-            Добавьте фильмы и сериалы в <Link href="/admin">админке</Link>.
+            <Link href="/admin">{t.home.emptyAdmin}</Link>
           </p>
         ) : (
-          <p className="lead">Скоро здесь появятся фильмы и сериалы.</p>
+          <p className="lead">{t.home.emptyUser}</p>
         )}
       </section>
     );
@@ -91,27 +91,27 @@ export default async function HomePage() {
         )}
         <div className="hero-content">
           <p className="eyebrow reveal" style={{ "--i": 0 } as React.CSSProperties}>
-            Дневник кино и сериалов
+            {t.home.eyebrow}
           </p>
           <h1 className="hero-title reveal" style={{ "--i": 1 } as React.CSSProperties}>
-            Всё, что вы посмотрели, <em>в одном месте</em>
+            {t.home.titleStart}
+            <em>{t.home.titleAccent}</em>
           </h1>
           <p className="lead reveal" style={{ "--i": 2 } as React.CSSProperties}>
-            Отмечайте просмотренное, ставьте оценки, пишите пару слов на память
-            и собирайте список на потом.
+            {t.home.lead}
           </p>
           <div className="hero-actions reveal" style={{ "--i": 3 } as React.CSSProperties}>
             {user ? (
               <Link href="/profile" className="button">
-                Мой профиль
+                {t.home.myProfile}
               </Link>
             ) : (
               <Link href="/login" className="button">
-                Создать аккаунт
+                {t.home.createAccount}
               </Link>
             )}
             <Link href="/catalog" className="button button-ghost">
-              Смотреть каталог
+              {t.home.browseCatalog}
             </Link>
           </div>
         </div>
@@ -121,10 +121,10 @@ export default async function HomePage() {
             className="hero-caption reveal"
             style={{ "--i": 4 } as React.CSSProperties}
           >
-            <span className="muted">В кадре</span> {featured.title}
+            <span className="muted">{t.home.inFrame}</span> {localTitle(featured, locale)}
             <span className="muted">
               {" "}
-              · {MEDIA_LABEL[featured.media_type]} {yearOf(featured.release_date)}
+              · {t.media[featured.media_type]} {yearOf(featured.release_date)}
             </span>
           </Link>
         )}
@@ -133,8 +133,8 @@ export default async function HomePage() {
       {topTitles.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>Высокие оценки</h2>
-            <span className="section-note">по мнению пользователей сайта</span>
+            <h2>{t.home.top}</h2>
+            <span className="section-note">{t.home.topNote}</span>
           </div>
           <TitleGrid titles={topTitles} stats={stats} />
         </section>
@@ -142,9 +142,9 @@ export default async function HomePage() {
 
       <section id="catalog">
         <div className="section-head">
-          <h2>Новое в каталоге</h2>
+          <h2>{t.home.latest}</h2>
           <Link href="/catalog?sort=added" className="section-link">
-            Весь каталог →
+            {t.home.allCatalog}
           </Link>
         </div>
         <TitleGrid titles={titles} stats={stats} />

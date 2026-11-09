@@ -1,39 +1,42 @@
 import Image from "next/image";
 import Link from "next/link";
 import { posterUrl } from "@/lib/tmdb";
-import { STATUS_LABEL, WATCH_STATUSES } from "@/lib/types";
+import { WATCH_STATUSES } from "@/lib/types";
 import type { Entry, Tab } from "@/lib/profile-data";
+import { getI18n } from "@/lib/i18n/server";
+import { localTitle } from "@/lib/i18n/content";
 
-export function ProfileStats({
+export async function ProfileStats({
   counts,
   avg,
 }: {
   counts: Record<Tab, number>;
   avg: string;
 }) {
+  const { t } = await getI18n();
   return (
     <dl className="profile-stats">
       <div>
-        <dt>Просмотрено</dt>
+        <dt>{t.profile.stats.watched}</dt>
         <dd>{counts.watched}</dd>
       </div>
       <div>
-        <dt>В планах</dt>
+        <dt>{t.profile.stats.planned}</dt>
         <dd>{counts.planned}</dd>
       </div>
       <div>
-        <dt>Брошено</dt>
+        <dt>{t.profile.stats.dropped}</dt>
         <dd>{counts.dropped}</dd>
       </div>
       <div>
-        <dt>Средняя оценка</dt>
+        <dt>{t.profile.stats.avg}</dt>
         <dd className="accent">{avg}</dd>
       </div>
     </dl>
   );
 }
 
-export function FavoritesRow({
+export async function FavoritesRow({
   favorites,
   emptyHint,
 }: {
@@ -41,11 +44,12 @@ export function FavoritesRow({
   emptyHint: string | null;
 }) {
   if (favorites.length === 0 && !emptyHint) return null;
+  const { locale, t: dict } = await getI18n();
   return (
     <section className="favorites">
       <div className="section-head">
         <h2>
-          Любимые <span className="fav-heart" aria-hidden="true">♥</span>
+          {dict.profile.favorites} <span className="fav-heart" aria-hidden="true">♥</span>
         </h2>
         {favorites.length > 0 && <span className="section-count">{favorites.length}</span>}
       </div>
@@ -55,6 +59,7 @@ export function FavoritesRow({
         <ul className="fav-grid">
           {favorites.map((e, i) => {
             const t = e.titles!;
+            const name = localTitle(t, locale);
             const poster = posterUrl(t.poster_path, "w342");
             return (
               <li
@@ -62,14 +67,14 @@ export function FavoritesRow({
                 className="reveal"
                 style={{ "--i": Math.min(i, 16) } as React.CSSProperties}
               >
-                <Link href={`/title/${t.id}`} className="fav-tile" title={t.title}>
+                <Link href={`/title/${t.id}`} className="fav-tile" title={name}>
                   {poster ? (
-                    <Image src={poster} alt={t.title} fill sizes="(max-width: 640px) 30vw, 140px" />
+                    <Image src={poster} alt={name} fill sizes="(max-width: 640px) 30vw, 140px" />
                   ) : (
-                    <span className="no-poster">{t.title}</span>
+                    <span className="no-poster">{name}</span>
                   )}
                   <span className="fav-caption">
-                    <span className="fav-title">{t.title}</span>
+                    <span className="fav-title">{name}</span>
                     {e.score !== null && <span className="fav-score">{e.score}</span>}
                   </span>
                 </Link>
@@ -82,7 +87,7 @@ export function FavoritesRow({
   );
 }
 
-export function ProfileTabsNav({
+export async function ProfileTabsNav({
   basePath,
   tab,
   counts,
@@ -91,12 +96,13 @@ export function ProfileTabsNav({
   tab: Tab;
   counts: Record<Tab, number>;
 }) {
+  const { t: dict } = await getI18n();
   const tabs: { key: Tab; label: string }[] = [
-    { key: "all", label: "Все" },
-    ...WATCH_STATUSES.map((s) => ({ key: s as Tab, label: STATUS_LABEL[s] })),
+    { key: "all", label: dict.profile.tabAll },
+    ...WATCH_STATUSES.map((s) => ({ key: s as Tab, label: dict.status[s] })),
   ];
   return (
-    <nav className="tabs-list" aria-label="Разделы профиля">
+    <nav className="tabs-list" aria-label={dict.profile.tabsAria}>
       {tabs.map((t) => (
         <Link
           key={t.key}

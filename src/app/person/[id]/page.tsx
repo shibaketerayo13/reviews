@@ -4,14 +4,15 @@ import { notFound } from "next/navigation";
 import { catalogIdMap, titleHref } from "@/lib/catalog";
 import { getPerson, posterUrl, type PersonCredit } from "@/lib/tmdb";
 import { TmdbCard } from "@/components/TmdbCard";
-import { MEDIA_LABEL } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { TMDB_LANGUAGE, fmt, formatDate } from "@/lib/i18n/config";
+import type { Dict } from "@/lib/i18n";
 
-function formatDate(date: string | null): string | null {
-  if (!date) return null;
-  const d = new Date(date);
-  return Number.isNaN(d.getTime())
-    ? date
-    : d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+/** Подпись основной профессии с учётом пола (актёр / актриса). */
+function departmentLabel(t: Dict, dept: string, female: boolean): string {
+  const d = t.person.departments;
+  if (dept === "Acting") return female ? d.ActingFemale : d.Acting;
+  return dept in d ? d[dept as keyof typeof d] : dept;
 }
 
 function ageAt(birthday: string, end: string | null): number {
@@ -25,7 +26,8 @@ function ageAt(birthday: string, end: string | null): number {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const person = await getPerson(Number(id)).catch(() => null);
+  const { locale, t } = await getI18n();
+  const person = await getPerson(Number(id), TMDB_LANGUAGE[locale], t.person).catch(() => null);
   return { title: person ? `${person.name} · reviews` : "reviews" };
 }
 
@@ -41,7 +43,8 @@ export default async function PersonPage({
   const id = Number(rawId);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
-  const person = await getPerson(id).catch(() => null);
+  const { locale, t } = await getI18n();
+  const person = await getPerson(id, TMDB_LANGUAGE[locale], t.person).catch(() => null);
   if (!person) notFound();
 
   const ids = await catalogIdMap(person.credits);
@@ -61,8 +64,8 @@ export default async function PersonPage({
   const catalogCount = person.credits.filter(inCatalog).length;
 
   const photo = posterUrl(person.profile_path, "h632");
-  const born = formatDate(person.birthday);
-  const died = formatDate(person.deathday);
+  const born = formatDate(locale, person.birthday);
+  const died = formatDate(locale, person.deathday);
   const age = person.birthday ? ageAt(person.birthday, person.deathday) : null;
   const longBio = person.biography.length > 700;
 
@@ -79,7 +82,7 @@ export default async function PersonPage({
         <div className="person-info">
           {person.department && (
             <p className="eyebrow reveal" style={{ "--i": 1 } as React.CSSProperties}>
-              {person.department}
+              {departmentLabel(t, person.department, person.female)}
             </p>
           )}
           <h1 className="title-name reveal" style={{ "--i": 2 } as React.CSSProperties}>
@@ -89,7 +92,7 @@ export default async function PersonPage({
           <dl className="person-facts reveal" style={{ "--i": 3 } as React.CSSProperties}>
             {born && (
               <div>
-                <dt>Родился</dt>
+                <dt>{t.person.born}</dt>
                 <dd>
                   {born}
                   {age !== null && !died && <span className="muted"> · {age}</span>}
@@ -98,7 +101,7 @@ export default async function PersonPage({
             )}
             {died && (
               <div>
-                <dt>Умер</dt>
+                <dt>{t.person.died}</dt>
                 <dd>
                   {died}
                   {age !== null && <span className="muted"> · {age}</span>}
@@ -107,15 +110,17 @@ export default async function PersonPage({
             )}
             {person.place_of_birth && (
               <div>
-                <dt>Место рождения</dt>
+                <dt>{t.person.birthplace}</dt>
                 <dd>{person.place_of_birth}</dd>
               </div>
             )}
             <div>
-              <dt>Работ</dt>
+              <dt>{t.person.works}</dt>
               <dd>
                 {person.credits.length}
-                {catalogCount > 0 && <span className="muted"> · {catalogCount} в каталоге</span>}
+                {catalogCount > 0 && (
+                  <span className="muted"> · {fmt(t.person.inCatalogCount, { n: catalogCount })}</span>
+                )}
               </dd>
             </div>
           </dl>
@@ -123,9 +128,9 @@ export default async function PersonPage({
           {person.biography &&
             (longBio ? (
               <details className="bio reveal" style={{ "--i": 4 } as React.CSSProperties}>
-                <summary>
+                <summary data-collapse={t.person.collapse}>
                   <span className="bio-preview">{person.biography}</span>
-                  <span className="bio-more">Читать полностью</span>
+                  <span className="bio-more">{t.person.readMore}</span>
                 </summary>
                 <p className="bio-full">{person.biography}</p>
               </details>
@@ -140,7 +145,7 @@ export default async function PersonPage({
       {known.length > 0 && (
         <section>
           <div className="section-head">
-            <h2>Известен по</h2>
+            <h2>{t.person.knownFor}</h2>
           </div>
           <div className="rail">
             {known.map((c, i) => (
@@ -149,7 +154,7 @@ export default async function PersonPage({
                 item={c}
                 href={titleHref(c, ids)}
                 inCatalog={inCatalog(c)}
-                subtitle={c.role || MEDIA_LABEL[c.media_type]}
+                subtitle={c.role || t.media[c.media_type]}
                 index={i}
               />
             ))}
@@ -159,7 +164,7 @@ export default async function PersonPage({
 
       <section>
         <div className="section-head">
-          <h2>Фильмография</h2>
+          <h2>{t.person.filmography}</h2>
           <span className="section-count">{filmography.length}</span>
           {catalogCount > 0 && (
             <div className="section-toggle">
@@ -168,14 +173,14 @@ export default async function PersonPage({
                 className={!onlyCatalog ? "is-active" : ""}
                 scroll={false}
               >
-                Все
+                {t.person.all}
               </Link>
               <Link
                 href={`/person/${id}?only=catalog`}
                 className={onlyCatalog ? "is-active" : ""}
                 scroll={false}
               >
-                В каталоге
+                {t.person.inCatalog}
               </Link>
             </div>
           )}
@@ -183,7 +188,7 @@ export default async function PersonPage({
 
         <ol className="filmography">
           {filmography.map((c) => {
-            const name = c.title ?? c.name ?? "Без названия";
+            const name = c.title ?? c.name ?? t.common.untitled;
             const local = inCatalog(c);
             return (
               <li key={`${c.media_type}:${c.id}`} className={local ? "is-local" : ""}>
@@ -193,9 +198,9 @@ export default async function PersonPage({
                 </Link>
                 <span className="film-role">
                   {c.role && <span>{c.role}</span>}
-                  <span className="film-type">{MEDIA_LABEL[c.media_type]}</span>
+                  <span className="film-type">{t.media[c.media_type]}</span>
                 </span>
-                {local && <span className="film-dot" title="Есть в каталоге" />}
+                {local && <span className="film-dot" title={t.person.hasInCatalog} />}
               </li>
             );
           })}

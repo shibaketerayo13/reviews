@@ -1,10 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { posterUrl, type TmdbSearchItem } from "@/lib/tmdb";
-import { MEDIA_LABEL, yearOf } from "@/lib/types";
+import { yearOf } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
 
 /** Карточка тайтла из TMDB: ведёт в каталог, если он там есть, иначе на превью. */
-export function TmdbCard({
+export async function TmdbCard({
   item,
   href,
   inCatalog,
@@ -17,7 +18,8 @@ export function TmdbCard({
   subtitle?: string;
   index?: number;
 }) {
-  const name = item.title ?? item.name ?? "Без названия";
+  const { t } = await getI18n();
+  const name = item.title ?? item.name ?? t.common.untitled;
   const poster = posterUrl(item.poster_path, "w342");
   const year = yearOf(item.release_date ?? item.first_air_date);
   return (
@@ -32,11 +34,11 @@ export function TmdbCard({
         ) : (
           <div className="no-poster">{name}</div>
         )}
-        {!inCatalog && <span className="card-flag">не в каталоге</span>}
+        {!inCatalog && <span className="card-flag">{t.card.notInCatalog}</span>}
       </div>
       <div className="card-body">
         <h3>{name}</h3>
-        <p>{subtitle ?? `${MEDIA_LABEL[item.media_type]}${year ? ` · ${year}` : ""}`}</p>
+        <p>{subtitle ?? `${t.media[item.media_type]}${year ? ` · ${year}` : ""}`}</p>
       </div>
     </Link>
   );

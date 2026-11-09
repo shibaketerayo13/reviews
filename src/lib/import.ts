@@ -13,9 +13,11 @@ export type ParsedLine = {
 /** Заголовок раздела «## Посмотреть позже» меняет статус для строк ниже. */
 function sectionStatus(line: string): ImportStatus | null {
   const s = line.replace(/^#+/, "").trim().toLowerCase();
-  if (/позже|буду|хочу|planned|plan|watchlist|want/.test(s)) return "planned";
-  if (/брош|dropped|abandon/.test(s)) return "dropped";
-  if (/просмотр|смотрел|watched|seen/.test(s)) return "watched";
+  // ru / be / pl / en
+  if (/позже|буду|хочу|пазней|хачу|później|chcę|do obejrzenia|planned|plan|watchlist|want|later/.test(s))
+    return "planned";
+  if (/брош|кінут|кінуў|porzuc|przerwan|dropped|abandon/.test(s)) return "dropped";
+  if (/просмотр|смотрел|прагледж|глядзеў|obejrzan|widzian|watched|seen/.test(s)) return "watched";
   return null;
 }
 
@@ -37,11 +39,7 @@ export type ImportItem = {
   status: ImportStatus;
 };
 
-export const STATUS_TEXT: Record<ImportStatus, string> = {
-  watched: "Просмотрено",
-  planned: "Посмотреть позже",
-  dropped: "Брошено",
-};
+export const IMPORT_STATUSES: ImportStatus[] = ["watched", "planned", "dropped"];
 
 export type ImportResult =
   | { ok: true; imported: number; addedToCatalog: number; skipped: number }

@@ -2,12 +2,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { botUsername } from "@/lib/telegram/api";
 import { startTelegramLink, unlinkTelegram } from "@/app/profile/actions";
+import { getI18n } from "@/lib/i18n/server";
 
 export async function TelegramLink({ userId }: { userId: string }) {
   const bot = botUsername();
   if (!bot) return null;
 
   const supabase = await createClient();
+  const { t } = await getI18n();
   const { data: link } = await supabase
     .from("telegram_links")
     .select("telegram_username")
@@ -23,25 +25,25 @@ export async function TelegramLink({ userId }: { userId: string }) {
       {link ? (
         <>
           <span>
-            Telegram привязан
+            {t.telegram.linked}
             {link.telegram_username ? (
               <span className="muted"> · @{link.telegram_username}</span>
             ) : null}
             {" · "}
             <a href={`https://t.me/${bot}`} target="_blank" rel="noreferrer">
-              открыть бота
+              {t.telegram.openBot}
             </a>
           </span>
           <form action={unlinkTelegram}>
             <button type="submit" className="link-button">
-              Отвязать
+              {t.telegram.unlink}
             </button>
           </form>
         </>
       ) : (
         <form action={startTelegramLink}>
           <button type="submit" className="link-button tg-connect">
-            Привязать Telegram — оценки и новые фильмы прямо из бота
+            {t.telegram.connect}
           </button>
         </form>
       )}

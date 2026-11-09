@@ -12,7 +12,9 @@ import {
   toProfileEntry,
   type Tab,
 } from "@/lib/profile-data";
-import { STATUS_LABEL, isWatchStatus, type WatchStatus } from "@/lib/types";
+import { isWatchStatus, type WatchStatus } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
+import { fmt } from "@/lib/i18n/config";
 
 type PublicProfile = {
   id: string;
@@ -40,12 +42,12 @@ export async function generateMetadata({
   params: Promise<{ username: string }>;
 }) {
   const { username } = await params;
-  const p = await findProfile(username);
-  if (!p) return { title: "Профиль не найден · reviews" };
+  const [p, { t }] = await Promise.all([findProfile(username), getI18n()]);
+  if (!p) return { title: `${t.meta.profileNotFound} · reviews` };
   const name = p.display_name ?? p.username;
   return {
     title: `${name} · reviews`,
-    description: `Фильмы и сериалы, которые посмотрел(а) ${name}, с оценками и отзывами`,
+    description: fmt(t.meta.publicDescription, { name }),
   };
 }
 
@@ -62,11 +64,15 @@ export default async function PublicProfilePage({
   if (!profile) notFound();
 
   const tab: Tab = isWatchStatus(rawTab) ? rawTab : "all";
-  const [viewer, data] = await Promise.all([getUser(), loadProfileData(profile.id)]);
+  const [viewer, data, { locale, t }] = await Promise.all([
+    getUser(),
+    loadProfileData(profile.id),
+    getI18n(),
+  ]);
   const { all, counts, avg, favorites } = data;
   const shown = tab === "all" ? all : all.filter((e) => e.status === tab);
   const name = profile.display_name ?? profile.username;
-  const since = formatSince(profile.created_at);
+  const since = formatSince(locale, profile.created_at);
   const isMe = viewer?.id === profile.id;
 
   return (
@@ -77,11 +83,10 @@ export default async function PublicProfilePage({
         <div className="profile-main">
           <p className="eyebrow">@{profile.username}</p>
           <h1 className="profile-name">{name}</h1>
-          {since && <p className="profile-since">На сайте с {since}</p>}
+          {since && <p className="profile-since">{fmt(t.profile.since, { date: since })}</p>}
           {isMe && (
             <p className="profile-own-note">
-              Так ваш профиль видят другие.{" "}
-              <Link href="/profile">Перейти к редактированию →</Link>
+              {t.profile.ownNote} <Link href="/profile">{t.profile.ownLink}</Link>
             </p>
           )}
         </div>
@@ -100,12 +105,12 @@ export default async function PublicProfilePage({
           <div className="empty reveal">
             <p className="empty-title">
               {tab === "all"
-                ? "Здесь пока пусто"
-                : `В разделе «${STATUS_LABEL[tab as WatchStatus]}» ничего нет`}
+                ? t.profile.emptyAll
+                : fmt(t.profile.emptyTab, { tab: t.status[tab as WatchStatus] })}
             </p>
           </div>
         }
-        entries={shown.map(toProfileEntry)}
+        entries={shown.map((e) => toProfileEntry(e, locale))}
       />
     </>
   );

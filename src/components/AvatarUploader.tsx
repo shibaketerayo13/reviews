@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { removeAvatar, setAvatar } from "@/app/profile/actions";
 import { Avatar } from "./Avatar";
+import { useI18n } from "./I18nProvider";
+import { fmt } from "@/lib/i18n/config";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const TYPES: Record<string, string> = {
@@ -24,6 +26,7 @@ export function AvatarUploader({
   url: string | null;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +36,8 @@ export function AvatarUploader({
   async function onFile(file: File) {
     setError(null);
     const ext = TYPES[file.type];
-    if (!ext) return setError("Подойдут JPG, PNG, WebP или GIF");
-    if (file.size > MAX_BYTES) return setError("Файл больше 2 МБ");
+    if (!ext) return setError(t.profile.avatarTypes);
+    if (file.size > MAX_BYTES) return setError(t.profile.avatarTooBig);
 
     const localUrl = URL.createObjectURL(file);
     setPreview(localUrl);
@@ -53,7 +56,9 @@ export function AvatarUploader({
     } catch (e) {
       setPreview(null);
       setError(
-        e instanceof Error ? `Не удалось загрузить: ${e.message}` : "Не удалось загрузить",
+        e instanceof Error
+          ? fmt(t.profile.avatarUploadFailedWith, { error: e.message })
+          : t.profile.avatarUploadFailed,
       );
     } finally {
       setBusy(false);
@@ -81,10 +86,10 @@ export function AvatarUploader({
         className={`avatar-button${busy ? " is-busy" : ""}`}
         onClick={() => input.current?.click()}
         disabled={busy}
-        aria-label="Сменить аватар"
+        aria-label={t.profile.avatarChange}
       >
         <Avatar url={shown} name={name} size={112} />
-        <span className="avatar-overlay">{busy ? "Загрузка…" : "Сменить"}</span>
+        <span className="avatar-overlay">{busy ? t.common.loading : t.profile.avatarChangeShort}</span>
       </button>
       <input
         ref={input}
@@ -98,7 +103,7 @@ export function AvatarUploader({
       />
       {url && !busy && (
         <button type="button" className="link-button subtle" onClick={onRemove}>
-          Удалить фото
+          {t.profile.avatarRemove}
         </button>
       )}
       {error && <p className="field-error">{error}</p>}

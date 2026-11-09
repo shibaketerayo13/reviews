@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { posterUrl, type TmdbSearchItem } from "@/lib/tmdb";
-import { MEDIA_LABEL, yearOf } from "@/lib/types";
+import { yearOf } from "@/lib/types";
+import { getI18n } from "@/lib/i18n/server";
 import { addTitle } from "@/app/admin/actions";
 
 /** Результаты из TMDB, которых ещё нет в каталоге. Админ может добавить их. */
-export function TmdbResults({
+export async function TmdbResults({
   items,
   isAdmin,
   returnTo,
@@ -14,10 +15,11 @@ export function TmdbResults({
   isAdmin: boolean;
   returnTo: string;
 }) {
+  const { t } = await getI18n();
   return (
     <ul className="tmdb-list">
       {items.map((item) => {
-        const name = item.title ?? item.name ?? "Без названия";
+        const name = item.title ?? item.name ?? t.common.untitled;
         const poster = posterUrl(item.poster_path, "w154");
         return (
           <li key={`${item.media_type}:${item.id}`} className="tmdb-item">
@@ -31,7 +33,7 @@ export function TmdbResults({
                 <strong>{name}</strong>
               </Link>
               <span className="muted small-text">
-                {MEDIA_LABEL[item.media_type]}{" "}
+                {t.media[item.media_type]}{" "}
                 {yearOf(item.release_date ?? item.first_air_date)}
                 {item.vote_average ? ` · TMDB ${item.vote_average.toFixed(1)}` : ""}
               </span>
@@ -41,10 +43,10 @@ export function TmdbResults({
                 <input type="hidden" name="tmdb_id" value={item.id} />
                 <input type="hidden" name="media_type" value={item.media_type} />
                 <input type="hidden" name="return_to" value={returnTo} />
-                <button type="submit">Добавить в каталог</button>
+                <button type="submit">{t.card.addToCatalog}</button>
               </form>
             ) : (
-              <span className="muted small-text">нет в каталоге</span>
+              <span className="muted small-text">{t.card.notInCatalog}</span>
             )}
           </li>
         );

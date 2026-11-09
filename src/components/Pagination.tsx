@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
 
 /** Номера страниц с многоточиями: 1 … 4 5 [6] 7 8 … 20 */
 function pages(current: number, last: number): (number | "gap")[] {
@@ -13,7 +14,7 @@ function pages(current: number, last: number): (number | "gap")[] {
   return out;
 }
 
-export function Pagination({
+export async function Pagination({
   current,
   last,
   href,
@@ -23,14 +24,15 @@ export function Pagination({
   href: (page: number) => string;
 }) {
   if (last <= 1) return null;
+  const { t } = await getI18n();
   return (
-    <nav className="pagination" aria-label="Страницы">
+    <nav className="pagination" aria-label={t.common.pages}>
       {current > 1 ? (
         <Link href={href(current - 1)} className="page-step" rel="prev">
-          ← Назад
+          {t.common.back}
         </Link>
       ) : (
-        <span className="page-step is-disabled">← Назад</span>
+        <span className="page-step is-disabled">{t.common.back}</span>
       )}
 
       <div className="page-numbers">
@@ -54,10 +56,10 @@ export function Pagination({
 
       {current < last ? (
         <Link href={href(current + 1)} className="page-step" rel="next">
-          Дальше →
+          {t.common.next}
         </Link>
       ) : (
-        <span className="page-step is-disabled">Дальше →</span>
+        <span className="page-step is-disabled">{t.common.next}</span>
       )}
     </nav>
   );
