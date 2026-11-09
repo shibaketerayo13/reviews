@@ -1,6 +1,7 @@
 // Обновляет сессию Supabase при каждом запросе (токены хранятся в cookie).
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { fetchWithTimeout, withTimeout } from "./fetch";
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -9,6 +10,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: fetchWithTimeout(3500) },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -27,7 +29,8 @@ export async function updateSession(request: NextRequest) {
   );
 
   // Не вставляйте код между созданием клиента и getUser().
-  await supabase.auth.getUser();
+  // Если Supabase не отвечает, не держим страницу: через 4 секунды идём дальше без обновления сессии.
+  await withTimeout(supabase.auth.getUser(), 4000, null);
 
   return response;
 }

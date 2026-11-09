@@ -1,14 +1,14 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { withTimeout } from "@/lib/supabase/fetch";
 import type { Profile } from "@/lib/types";
 
 export const getUser = cache(async () => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  // Если Supabase не отвечает, считаем посетителя гостем, а не вешаем страницу
+  const res = await withTimeout(supabase.auth.getUser(), 5000, null);
+  return res?.data.user ?? null;
 });
 
 export const getProfile = cache(async (): Promise<Profile | null> => {
